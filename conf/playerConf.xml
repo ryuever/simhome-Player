@@ -1,0 +1,20 @@
+<root>
+  <comm>"conf file is  ./conf/sample_home/multihomes-Family.cfg"</comm>
+  <Generic 
+    Vstart="2010:10:17:00:00:00" 
+    VdeltaT="60.0" 
+    Rstart="2011:01:15:21:54:00" 
+    RdeltaT="0.0" 
+    demandResponse="True" 
+    Use_SrvHost="'127.0.0.1'" 
+    Use_SrvPort="8888" 
+    Gen_SrvHost="'127.0.0.1'" 
+    Gen_SrvPort="8889" 
+    SrvTimeout="60" 
+    oadr_Srv_Gen_Host="'localhost'" 
+    oadr_Srv_Gen_Port="7777" 
+    oadr_Srv_Use_Host="'localhost'" 
+    oadr_Srv_Use_Port="7778" 
+    WRITE_FILE="no" >
+  </Generic>
+</root>

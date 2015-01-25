@@ -1,0 +1,7 @@
+eclipse.preferences.version=1
+encoding//src/DataSender/oadrModokiClnt.py=utf-8
+encoding//src/FileReader/CsvFileReader.py=utf-8
+encoding//src/PlayerMain/confXMLObject.py=utf-8
+encoding//src/PlayerMain/playerMain.py=utf-8
+encoding//src/PlayerMain/run.py=utf-8
+encoding//src/Synchronizer/SyncObject.py=utf-8

@@ -29,7 +29,8 @@ def recvall(sock):
             break
     
     recv_len = recv_data[:i]
-    data = b'' + recv_data[i + 1:]
+    # data = b'' + recv_data[i + 1:]
+    data = recv_data[i + 1:]
 
     amount_received = len(data)
     amount_expected = eval(recv_len)
@@ -54,7 +55,14 @@ print("serverHost : ",serverHost)
 print("port : ", serverPort)
 sockobj.connect((serverHost, eval(serverPort)))   # connect to server machine + port
 # text = input()
-text = '{"method":"get", "sender":"", "date":"", "time":"", "type":""}'
+# text = '{"method":"get", "sender":"", "date":"", "time":"", "type":""}'
+# <value sender = "" date="" time="23:44" flag='0'></value>
+text = '''
+<root method='inquery'>
+<value sender = "" date="" time="13:14" flag='1-min'></value>
+<value sender = "" date="" time="23:54" flag='1-max'></value>
+</root>
+'''
 # text = '{"method":"insert", "sender":"First", "date":"20140701", "time":"00:01:00", "type":"int", "text":"200"}'
 btext = text.encode()
 length = len(btext)
@@ -63,11 +71,11 @@ length = len(btext)
 sockobj.sendall(str(length).encode() + b' ' + btext)
 
 
-# for single clients
-recv_data = recvall(sockobj)
-print('Client received:\n')
-print(recv_data.decode())
-sockobj.close()                             # close socket to send eof to server        
+# # for single clients
+# recv_data = recvall(sockobj)
+# print('Client received:\n')
+# print(recv_data.decode().strip())
+# sockobj.close()                             # close socket to send eof to server        
 
 # # for multi-clients
 # recv_data = recvall(sockobj)
@@ -77,3 +85,67 @@ sockobj.close()                             # close socket to send eof to server
 # print(recv_data.decode())
 # fp.write(recv_data.decode())
 # sockobj.close()                             # close socket to send eof to server        
+
+
+# for matplotlib
+import matplotlib.pyplot as plt
+from datetime import datetime
+from matplotlib.dates import DayLocator, HourLocator, DateFormatter, drange
+import time 
+import numpy as np
+import matplotlib.dates as md
+
+recv_data = recvall(sockobj)
+import xml.etree.ElementTree as ET
+t_data ='<root>' + recv_data.decode() + '</root>'
+root = ET.fromstring(t_data)
+
+date = ''
+time_data = []
+value = []
+for item in root:
+    date = item.attrib["date"] + ' ' + item.attrib['time']
+    py_date = datetime.strptime(date, '%Y%m%d %H:%M')
+    time_data.append(py_date)
+    value.append(int(item.text))
+print time_data, value
+
+
+from matplotlib.dates import MinuteLocator
+fig, ax = plt.subplots()
+plt.plot(time_data, value)
+ax.xaxis.set_major_formatter( DateFormatter('%Y-%m-%d %H:%M') )
+ax.xaxis.set_major_locator(MinuteLocator(interval=30))
+plt.setp(plt.gca().get_xticklabels(), rotation=45, horizontalalignment='right')
+plt.subplots_adjust(bottom=0.2)
+
+ax.set_ylim([0, 25])
+plt.show()
+
+# for i in range(5):
+#     print time[i], value[i]
+#     time.append(time[i])
+sockobj.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

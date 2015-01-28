@@ -45,21 +45,34 @@ def reapChildren():                              # reap any dead child processes
         if not pid: break
         activeChildren.remove(pid)
 
-def handleClient(connection):                    # child process: reply, exit
-    b_data = recvall(connection)
-    JSON_str = json.loads(b_data.decode())
-    method = JSON_str['method']
-    if method == 'get':
-        print('invoke get_all')
-        reply = get_all(root, JSON_str)
-    elif method == 'remove':
+def parse_request(request_xml_data):
+    request_root = ET.fromstring(request_xml_data)
+    print request_root
+    request_method = request_root.attrib['method']
+    request_list = []
+    for item in request_root:
+        request_list.append(item.attrib)
+    sorted_request_list = sorted(request_list, key=lambda k: k['flag'])
+
+    print "sorted_request_list", sorted_request_list
+
+    print(request_method)
+    if request_method == 'inquery':
+        print('go to inquery')
+        request_result = inquery(root, sorted_request_list)
+    elif request_method == 'remove':
         print("remove method")
-        reply = remove(root, JSON_str)            
-    elif method == 'insert':
+        request_result = remove(root, sorted_request_list)            
+    elif request_method == 'insert':
         print("insert method")
-        reply = insert(root, tree, JSON_str)
+        request_result = insert(root, tree, sorted_request_list)
     else:
         print("error")
+    return request_result
+
+def handleClient(connection):                    # child process: reply, exit
+    b_data = recvall(connection)    
+    reply = parse_request(b_data.decode())
     b_reply = reply.encode()
     length = len(b_reply)
     connection.sendall(str(length).encode() + b' ' + b_reply)

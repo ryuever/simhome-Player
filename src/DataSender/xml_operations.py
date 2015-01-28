@@ -11,79 +11,110 @@ import socket
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 
-def get_all(root, dict_ins):
+def inquery(root, sorted_request_list):
     buf = StringIO.StringIO()
-    print(dict_ins)
-    print('in get_all')
-    pattern = './/'
-    if dict_ins['sender']:
-        sender_pattern = "data[@sender='"+dict_ins['sender']+"']/value"
-        # sender_pattern = "data[@sender='{}']/value".format(dict_ins['sender'])
-        print(sender_pattern)
-        pattern += sender_pattern
-    else:
-        pattern += 'value'
-    if dict_ins['date']:
-        date_pattern = '[@date="'+dict_ins['date']+'"]'
-        print(date_pattern)
-        pattern += date_pattern
-    if dict_ins['time']:
-        time_pattern = '[@time="'+dict_ins['time']+'"]'
-        print(time_pattern)
-        pattern += time_pattern
-    if dict_ins['type']:
-        type_pattern = '[@type="'+dict_ins['type']+'"]'
-        print(type_pattern)
-        pattern += type_pattern
-    print(pattern)
-    for item in root.findall(pattern):
-        attr = item.attrib
-        text = item.text 
-        result = '<value date="' + attr['date'] + '" ' + 'time="' + attr['time'] + '" ' \
-            + 'type="' + attr['type'] + '">' + text + '</value>\n'
-
-        buf.write(bytes(result))
+    print(sorted_request_list)
+    index = 0
+    while index < len(sorted_request_list):
+        print 'in while loop'
+        item = sorted_request_list[index]
+        print 'first : ', item['flag']
+        if item['flag'] == '0':            
+            print 'second : '
+            pattern = './/'
+            if item['sender']:
+                sender_pattern = "data[@sender='"+item['sender']+"']/value"
+                print(sender_pattern)
+                pattern += sender_pattern
+            else:
+                pattern += 'value'
+            if item['date']:
+                date_pattern = '[@date="'+item['date']+'"]'
+                print(date_pattern)
+                pattern += date_pattern
+            if item['time']:
+                time_pattern = '[@time="'+item['time']+'"]'
+                print(time_pattern)
+                pattern += time_pattern
+            print(pattern)
+            for item in root.findall(pattern):
+                attr = item.attrib
+                text = item.text 
+                result = '<value date="' + attr['date'] + '" ' + 'time="' + attr['time'] + '" ' \
+                         + 'type="' + attr['type'] + '">' + text + '</value>\n'
+                buf.write(bytes(result))
+        else:
+            if item['flag'].endswith('max'):
+                print 'in else'
+                index += 1
+                print 'else ', index
+                item_next = sorted_request_list[index]
+                print 'item_next :', item_next
+                time_min = int(item_next['time'].replace(':',''))
+                time_max = int(item['time'].replace(':',''))
+                print 'item["date"], time_max, time_min', item['date'], time_max, time_min
+                if item['date']:
+                    pass
+                else:
+                    print 'second loop'                    
+                    for ele in root.findall('.//value'):
+                        ele_attr = ele.attrib
+                        ele_text = ele.text 
+                        item_time = int(ele_attr['time'].replace(':',''))
+                        print item_time
+                        start = False
+                        print 'time_min, item_tiem, time_max', time_min, item_time, time_max
+                        if time_min < item_time < time_max:
+                            print "matched"
+                            ele_result = '<value date="' + ele_attr['date'] + '" ' + 'time="' + ele_attr['time'] + '" ' \
+                                     + 'type="' + ele_attr['type'] + '">' + ele_text + '</value>\n'
+                            buf.write(bytes(ele_result))
+                            start = True
+                        elif start == True:
+                            break
+                        else:
+                            continue
+        index += 1            
     output = buf.getvalue()
     buf.close()
     return output
 
 # {"method":"remove", "sender":"First", "date":"2014/07/31", "time":"00:01:00", "type":"int"}
 # {"method":"remove", "sender":"", "date":"20140820", "time":"", "type":""}
-def remove(root, dict_ins):
-    print(dict_ins)
-    print('in get_all')
+def remove(root, sorted_request_list):
     pattern = './/'
-    buf = io.StringIO()
+    buf = StringIO.StringIO()
 
-    if not (dict_ins['date'] or dict_ins['time'] or dict_ins['type']):
-        if dict_ins['sender']:
+
+    if not (item['date'] or item['time'] or item['type']):
+        if item['sender']:
             parent = '.'
-            pattern = 'data[@sender="'+dict_ins['sender']+'"]'
+            pattern = 'data[@sender="'+item['sender']+'"]'
             print(parent)
             print(pattern)
         else:
             parent = '.'
             pattern = 'data'
     else:
-        if dict_ins['sender']:
-            parent = 'data[@sender="'+dict_ins['sender']+'"]'
-            sender_pattern = "data[@sender='{}']/value".format(dict_ins['sender'])
+        if item['sender']:
+            parent = 'data[@sender="'+item['sender']+'"]'
+            sender_pattern = "data[@sender='{}']/value".format(item['sender'])
             print(sender_pattern)
             pattern += sender_pattern
         else:
             pattern += 'value'
             parent = 'data'
 
-        if dict_ins['date']:
-            date_pattern = '[@date="'+dict_ins['date']+'"]'
+        if item['date']:
+            date_pattern = '[@date="'+item['date']+'"]'
             print(date_pattern)
             pattern += date_pattern
-        if dict_ins['time']:
-            time_pattern = '[@time="'+dict_ins['time']+'"]'
+        if item['time']:
+            time_pattern = '[@time="'+item['time']+'"]'
             print(time_pattern)
             pattern += time_pattern
-        if dict_ins['type']:
-            type_pattern = '[@type="'+dict_ins['type']+'"]'
+        if item['type']:
+            type_pattern = '[@type="'+item['type']+'"]'
             print(type_pattern)
             pattern += type_pattern
 
@@ -103,18 +134,18 @@ def remove(root, dict_ins):
 # {"method":"insert", "sender":"First", "date":"2014/07/01", "time":"00:01:00", "type":"int", "text":"200"}
 # {"method":"insert", "sender":"Second", "date":"2014/06/31", "time":"00:01:00", "type":"int", "text":200}
 # {"method":"insert", "sender":"First", "date":"20140701", "time":"00:01:00", "type":"int", "text":"200"}
-def insert(root, tree, dict_ins):
-    print(dict_ins)
+def insert(root, tree, item):
+    print(item)
     print('in get_all')
     pattern = './/'
 
-    if not (dict_ins['date'] or dict_ins['time'] or dict_ins['type']):
+    if not (item['date'] or item['time'] or item['type']):
         raise Exception("error message")
     else:
-        attrib = dict((k, dict_ins[k]) for k in ('date', 'time', 'type') if k in dict_ins)
-        if dict_ins['sender']:
-            parent = 'data[@sender="'+dict_ins['sender']+'"]'
-            print(dict_ins['date'])
+        attrib = dict((k, item[k]) for k in ('date', 'time', 'type') if k in item)
+        if item['sender']:
+            parent = 'data[@sender="'+item['sender']+'"]'
+            print(item['date'])
         else:
             parent = 'data'
 
@@ -128,8 +159,8 @@ def insert(root, tree, dict_ins):
     # # create new element
     # builder = ET.TreeBuilder()
     # builder.start('value', attrib)
-    # print(dict_ins['text'])
-    # builder.data(dict_ins['text'])
+    # print(item['text'])
+    # builder.data(item['text'])
     # builder.end('value')
     # subele = builder.close()
     # print("subele is : ", subele)

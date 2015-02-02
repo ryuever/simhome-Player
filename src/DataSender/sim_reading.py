@@ -1,15 +1,13 @@
 # read from xml file, every 0.1s one record
 
 import os, sys
-import time
 import threading
 import xml.etree.ElementTree as ET
 import time 
+from datetime import date, datetime, timedelta
 import numpy as np
 import matplotlib.dates as md
 import pylab
-import datetime
-import time
 from pylab import *
 import Tkinter
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
@@ -37,7 +35,6 @@ class Mythread(threading.Thread):
                 t_data ='<root>' + line.decode() + '</root>'
                 root = ET.fromstring(t_data)
                 
-                    
                 date = ''
                 for item in root:
                     date = item.attrib["date"] + ' ' + item.attrib['time']
@@ -46,7 +43,7 @@ class Mythread(threading.Thread):
                     print py_date
                     if first_line == False:
                         for i in reversed(range(100)):
-                            pre_py_date = py_date - datetime.timedelta(minutes=i)
+                            pre_py_date = py_date - timedelta(minutes=i)
                             time_data.append(pre_py_date)
                             # value.append(int(item.text))                            
                             value.append(np.nan)
@@ -67,9 +64,9 @@ yAchse=pylab.array([0]*100)
 fig = pylab.figure(1)
 ax = fig.add_subplot(111)
 ax.grid(True)
-ax.set_title("Realtime Waveform Plot")
-ax.set_xlabel("Time")
-ax.set_ylabel("Amplitude")
+ax.set_title("Realtime Simulation")
+
+ax.set_ylabel("generated power")
 # ax.axis([0,100,-1.5,1.5])
 # ax.plot(xAchse,yAchse,'-')
 
@@ -86,42 +83,38 @@ toolbar.update()
 canvas._tkcanvas.pack(side=Tkinter.TOP, fill=Tkinter.BOTH, expand=1)
 
 def RealtimePloter():
-    # print 'in realtimePloter'
     global value,wScale,wScale2
     NumberSamples=min(len(value),wScale.get())
-    # print 'NumberSamples : ', NumberSamples
-    # print 'len(values) : ', len(value)
-  
     
     print value
     print time_data
-    l_value = len(value)
+    len_value = len(value)
+    m_left_index = len_value-NumberSamples
+    m_right_index = len_value - 1
     line1[0].set_data(time_data[-NumberSamples:], value[-NumberSamples:])
-    ax.axis([time_data[l_value - NumberSamples], time_data[l_value -1], 0, 100])    
+    ax.axis([time_data[m_left_index], time_data[m_right_index], 0, 100])    
 
-    # if l_value > NumberSamples:
-
-
-    #     # print "from if time_data : ", time_data[-NumberSamples:]
-    #     # print "from if time_data : ", value[-NumberSamples:]
-    # else:
-    #     # print value
-    #     line1[0].set_data(time_data, value)
-    #     # line1[0].set_data(time_data[-NumberSamples:], value[-NumberSamples:])
-    #     # print "from else time_data : ", time_data
-    #     # print "from else value : ", value
-    #     ax.axis([time_data[0], time_data[len(value) - 1], 0, 100])
-    #     # ax.axis([time_data[len(value) - NumberSamples], time_data[len(value) -1], 0, 100])
-
-    # ax.get_xaxis().set_tick_params(which='both', direction='out', pad=20)
-    ax.xaxis.set_major_formatter( DateFormatter('%Y-%m-%d %H:%M') )
+    # ax.xaxis.set_major_formatter( DateFormatter('%Y-%m-%d %H:%M') )
+    # time only
+    ax.xaxis.set_major_formatter(DateFormatter('%H:%M') )
     ax.xaxis.set_major_locator(MinuteLocator(interval=5))
     plt.setp(plt.gca().get_xticklabels(), rotation=45, horizontalalignment='right')
     plt.subplots_adjust(bottom=0.2)
 
     ax.relim()
     ax.autoscale_view(True,True,True)
-
+    m_left_date = time_data[m_left_index].date()
+    m_right_date = time_data[m_right_index].date()
+    list_x_label = []
+    if m_left_date == m_right_date:
+        ax.set_xlabel(m_left_date.strftime("%Y-%m-%d"))
+    else:
+        diff_days = m_right_date - m_left_date
+        int_diff_days = diff_days.days + 1
+        for i in range(int_diff_days):
+            date_str = (m_left_date + timedelta(days=i)).strftime("%Y-%m-%d")            
+            list_x_label.append(date_str)
+        ax.set_xlabel("   ".join(list_x_label))
     canvas.draw()
     root.after(1000,RealtimePloter)
 

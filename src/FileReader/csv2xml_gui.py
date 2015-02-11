@@ -16,6 +16,7 @@ class ProcessCSV(Frame):
         Frame.__init__(self, parent)
         formRow = ''
         requestRow = ''
+        parent.wm_title("convert csv to xml")
         self.makeForm(parent)
         self.makeRequest(parent)        
 

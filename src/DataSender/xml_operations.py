@@ -1,9 +1,8 @@
 # fork_server.py
 import os, time, sys, xml.etree.ElementTree as ET
 import json
-from socket import *                      # get socket constructor and constants
 import StringIO
-import socket
+import re
 
 # {"method":"get", "sender":"First", "date":"2014/07/31", "time":"00:01:00", "type":"int"}
 # {"method":"get", "sender":"", "date":"", "time":"", "type":""}
@@ -182,3 +181,19 @@ def insert(root, tree, item):
 
     output = "1 records is appened"
     return output
+
+# for only one xml record to tuple list
+def single_xml2lst(xml_data):
+    regexpattern = '<|>| |"'
+    splited_data = re.split(regexpattern, xml_data)
+    temp_lt = []
+    temp_lt.append(splited_data[3])
+    temp_lt.append(splited_data[6])
+    temp_lt.append(splited_data[9])
+    temp_lt.append(splited_data[14])
+    return tuple(temp_lt)
+
+def multi_xml2lst(xml_data):
+    root = ET.fromstring('<root>\n' + xml_data + '</root>')
+    return [(item.attrib['sender'], item.attrib['date'], item.attrib['time'], item.text) for item in root]
+    

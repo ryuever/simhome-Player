@@ -1,10 +1,16 @@
 # fork_server.py
 import os, time, sys, xml.etree.ElementTree as ET
 from xml_operations import *
+from db_operations import *
 import json
 from socket import *
 import io
 import socket
+from SimProcessing import *
+import threading
+import time 
+from datetime import date, datetime, timedelta
+import numpy as np
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
@@ -21,10 +27,10 @@ def recvall(connection):
     
     recv_len = recv_data[:i]
     data = b'' + recv_data[i+1:]
-    print("received data's length : ", recv_len)
+    # print("received data's length : ", recv_len)
     amount_received = len(data)
-    print('recv_len : ', recv_len)
-    print('data: ', data)
+    # print('recv_len : ', recv_len)
+    # print('data: ', data)
     amount_expected = eval(recv_len)
     
     while amount_received < amount_expected:
@@ -71,13 +77,50 @@ def parse_request(request_xml_data):
     return request_result
 
 def handleClient(connection):                    # child process: reply, exit
-    b_data = recvall(connection)    
-    reply = parse_request(b_data.decode())
-    b_reply = reply.encode()
-    length = len(b_reply)
-    connection.sendall(str(length).encode() + b' ' + b_reply)
-    connection.close()
-    print(connection, " is closed")
+    recv_buf = []
+    global time_data, value, first_line
+    while True:
+        recv_b = recvall(connection)
+        # print recv_b
+        recv_str = recv_b.decode()
+        if recv_str.startswith('control'):
+            print 'one control record come'
+            # parse_request(recv_str)
+            pass
+        else:
+            recv_buf.append(recv_str)
+            xml_sender, xml_date, xml_time, xml_value = single_xml2lst(recv_str)
+            py_date = datetime.strptime(xml_date.encode() + ' ' + xml_time.encode(),  '%Y%m%d %H:%M')
+            # print 'py_date : ', py_date
+            if first_line == False:
+                for i in reversed(range(100)):
+                    pre_py_date = py_date - timedelta(minutes=i)
+                    time_data.append(pre_py_date)
+                    value.append(np.nan)
+                    first_line = True
+            time_data.append(py_date)
+            value.append(xml_value.encode())
+
+            if len(recv_buf) > 30:
+                conn, cursor = conn_DB()
+                lt2str = ''.join(recv_buf)
+                # print lt2str
+                xml_tuple_list = multi_xml2lst(lt2str)
+                # print xml_tuple_list
+                ins_DB(conn, cursor,xml_tuple_list)
+                recv_buf = []
+                print 'cycle finish'
+                print "close database"
+                conn.close()
+    print 'cleaning'
+    print 'finally close database'
+    conn.close()
+    # reply = parse_request(b_data.decode())
+    # b_reply = reply.encode()
+    # length = len(b_reply)
+    # connection.sendall(str(length).encode() + b' ' + b_reply)
+    # connection.close()
+    # print(connection, " is closed")
     os._exit(0)
 
 def launchServer():                                # listen until process killed
@@ -90,12 +133,17 @@ def launchServer():                                # listen until process killed
         connection, address = sockobj.accept()   # pass to process for service
         print('Server connected by', address)
         print('at', now())
-        reapChildren()                           # clean up exited children now
-        childPid = os.fork()                     # copy this process
-        if childPid == 0:                        # if in child process: handle
-            handleClient(connection)
-        else:                                    # else: go accept next connect
-            activeChildren.append(childPid)      # add to active child pid list
+        # reapChildren()                           # clean up exited children now
+        # childPid = os.fork()                     # copy this process
+
+        # args must be a tuple...........
+        
+        handleclient = threading.Thread(name='handleclient', target=handleClient,args=(connection,))
+        handleclient.start()
+        # if childPid == 0:                        # if in child process: handle
+        #     handleClient(connection)
+        # else:                                    # else: go accept next connect
+        #     activeChildren.append(childPid)      # add to active child pid list        
 
 if __name__=='__main__':
     if len(sys.argv) == 3:
@@ -104,8 +152,39 @@ if __name__=='__main__':
     else:
         serverHost = "localhost"
         serverPort = "50000"
-
+    
     tree = ET.parse('../../SampleDATA/csvData/First.xml')
     root = tree.getroot()
+    
+    time_data = []
+    value = []
+    first_line = False
+    sock_processing = threading.Thread(name='sock_processing', target=launchServer)
+    sock_processing.start()
+ 
+    print 'come to sim'
+    sim_object = SimProcessing("Realtime Simulation on Server")
+    time.sleep(2)
+    sim_object.start(time_data, value)
 
-    launchServer()
+    # while True:
+    #     time.sleep(1)
+    #     print 'sim loop'
+    #     print "used for simulation : ",time_data, value        
+    #     sim_object.realtimePloter(time_data, value)
+
+    # childPid = os.fork()
+    # if childPid == 0:
+    #     print 'socket processing'
+    #     launchServer()
+    # else:        
+    #     print 'come to sim'
+    #     while True:
+
+
+        # 
+        # while True:
+        #     print 'in sim loop'
+        #     time.sleep(1)
+        #     print time_data, value
+        #     sim_object.realtimePloter(time_data, value)

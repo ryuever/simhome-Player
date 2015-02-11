@@ -64,9 +64,7 @@ ax.set_title("Realtime Simulation")
 ax.set_ylabel("generated power")
 first_time = True
 line1 = ''
-# line1 = ax.plot(time_data, value, '-')
 # line1 = ax.plot(datetime.datetime.now(), np.nan, '-')
-# line1 = ax.plot(time_data, value, '-')
 
 init_date = []
 init_value = []
@@ -92,7 +90,6 @@ toolbar.update()
 canvas._tkcanvas.pack(side=Tkinter.TOP, fill=Tkinter.BOTH, expand=1)
 
 def RealtimePloter():
-    print "begin"
     global value,wRadio, first_time, line1, v
     radio_value = v.get()
     NumberSamples=min(len(value),radio_value)
@@ -151,4 +148,3 @@ for radio_text, radio_value in numList:
 root.protocol("WM_DELETE_WINDOW", _quit)
 root.after(1000,RealtimePloter)
 Tkinter.mainloop()
-

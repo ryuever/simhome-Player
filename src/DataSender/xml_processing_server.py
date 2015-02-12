@@ -61,7 +61,14 @@ def db_query(start, end):
     # print start_date, start_time, end_date, end_time
     conn, cursor = conn_DB("sim_player.db")
     res = duration_query(cursor, start, end)
-    print res
+
+    datetime_list = []
+    value_list = []
+    for item in res:
+        datetime_list.append(item[1])
+        value_list.append(item[2].encode())
+    print datetime_list, value_list
+    sim_plotting(root, datetime_list, value_list)
     
 def parse_request(request_xml_data):
     request_root = ET.fromstring(request_xml_data)
@@ -118,7 +125,6 @@ def handleClient(connection):                    # child process: reply, exit
                 lt2str = ''.join(recv_buf)
                 # print lt2str
                 xml_tuple_list = multi_xml2lst(lt2str)
-                print xml_tuple_list
                 # print xml_tuple_list
                 ins_DB(conn, cursor,xml_tuple_list)
                 recv_buf = []
@@ -161,7 +167,7 @@ def start_real_time_sim(root, time_data, value):
         
 def cre_ctrl_panel(root):
     print 'create table'
-    root.wm_title("Simulation Control Panel")
+    root.wm_title("Simulation Control Panel -- Server")
     root.minsize(width=666, height=666)
     buttonRow = Frame(root)
 

@@ -92,7 +92,7 @@ def start_real_time_sim(root, time_data, value):
     
 def cre_ctrl_panel(root):
     print 'create table'
-    root.wm_title("Simulation Control Panel")
+    root.wm_title("Simulation Control Panel -- Client")
     root.minsize(width=666, height=666)
     buttonRow = Frame(root)
 

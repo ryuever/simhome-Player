@@ -72,7 +72,7 @@ def send_xml_every_second():
             sockobj.sendall(str(xml_len).encode() + b' ' +xml_text)
 
             xml_sender, xml_date, xml_time, xml_value = single_xml2lst(line)
-            py_date = datetime.datetime.strptime(xml_date + ' ' + xml_time,  '%Y%m%d %H:%M')
+            py_date = datetime.datetime.strptime(xml_date + ' ' + xml_time,  '%Y%m%d %H:%M')            
             # print 'py_date : ', py_date
             if first_line == False:
                 for i in reversed(range(100)):
@@ -83,9 +83,15 @@ def send_xml_every_second():
             time_data.append(py_date)
             value.append(xml_value.encode())
 
-def cre_ctrl_panel():
+
+def start_real_time_sim(root, time_data, value):
+    print 'come to sim'
+    sim_object = SimProcessing("Realtime Simulation on Client", root)
+    time.sleep(2)
+    sim_object.start(time_data, value)
+    
+def cre_ctrl_panel(root):
     print 'create table'
-    root = Tk()
     root.wm_title("Simulation Control Panel")
     root.minsize(width=666, height=666)
     buttonRow = Frame(root)
@@ -100,6 +106,12 @@ def cre_ctrl_panel():
     button3.pack(side=Tkinter.LEFT)
     buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)
 
+    button4 = Tkinter.Button(master=buttonRow, text='realtime simulation',
+                             command=lambda : start_real_time_sim(root, time_data, value) )
+    button4.pack(side=Tkinter.LEFT)
+    buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)  
+
+    
     timeDurationRow = Frame(root)
     Label(master=timeDurationRow, text="choose a time duration").pack(side=BOTTOM)
     timeDurationRow.pack(side=TOP, fill=X, padx=5, pady=5)
@@ -125,37 +137,16 @@ print("serverHost : ",serverHost)
 print("port : ", serverPort)
 sockobj.connect((serverHost, eval(serverPort)))   # connect to server machine + port
 
-#####################################convert to threading processing #######################
-# childPid = os.fork()
-# if childPid == 0:
-#     print "in child process"
-#     send_xml_every_second()
-#     print "in child process : send successful"
-# else:
-#     print "in main process"
-#     time.sleep(1)
-#     text = '''control
-#     <root method='inquery'>
-#     <value sender = "" date="" time="13:14" flag='1-min'></value>
-#     <value sender = "" date="" time="23:54" flag='1-max'></value>
-#     </root>'''
-#     b_text = text.encode()
-#     b_len  = len(b_text)
-#     sockobj.sendall(str(b_len).encode() + b' ' + b_text)
-#     print "in main process : send successful"
-##################################  end ####################################################
-
 # create_control_panel = threading.Thread(name='create control panel', target=cre_ctrl_panel)
 # create_control_panel.start()
+
 
 send_data = threading.Thread(name='send to server xml data every second', target=send_xml_every_second)
 send_data.start()
 
+root = Tk()
+cre_ctrl_panel(root)
 
-print 'come to sim'
-sim_object = SimProcessing("Realtime Simulation on Client")
-time.sleep(2)
-sim_object.start(time_data, value)
 
 print 'not reach'
 # if len(sys.argv) > 1:       

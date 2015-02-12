@@ -126,6 +126,7 @@ def handleClient(connection):                    # child process: reply, exit
 def launchServer():                                # listen until process killed
     sockobj = socket.socket(AF_INET, SOCK_STREAM)           # make a TCP socket object
     sockobj.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    print "run launchserver"
     sockobj.bind((serverHost, eval(serverPort)))                   # bind it to server port number
     sockobj.listen(5)                                # allow 5 pending connects
 
@@ -143,7 +144,51 @@ def launchServer():                                # listen until process killed
         # if childPid == 0:                        # if in child process: handle
         #     handleClient(connection)
         # else:                                    # else: go accept next connect
-        #     activeChildren.append(childPid)      # add to active child pid list        
+        #     activeChildren.append(childPid)      # add to active child pid list
+
+def start_real_time_sim(root, time_data, value):
+    print 'come to sim'
+    sim_object = SimProcessing("Realtime Simulation on Server", root)
+    time.sleep(2)
+    sim_object.start(time_data, value)
+        
+def cre_ctrl_panel(root):
+    print 'create table'
+    root.wm_title("Simulation Control Panel")
+    root.minsize(width=666, height=666)
+    buttonRow = Frame(root)
+
+    button1 = Tkinter.Button(master=buttonRow, text='recent one week', command=None)
+    button1.pack(side=Tkinter.LEFT)
+
+    button2 = Tkinter.Button(master=buttonRow, text='last month', command=None)
+    button2.pack(side=Tkinter.LEFT)
+
+    button3 = Tkinter.Button(master=buttonRow, text='last six monthes', command=None)
+    button3.pack(side=Tkinter.LEFT)
+    buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)
+
+    button4 = Tkinter.Button(master=buttonRow, text='realtime simulation',
+                             command=lambda : start_real_time_sim(root, time_data, value) )
+    button4.pack(side=Tkinter.LEFT)
+    buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)  
+
+    
+    timeDurationRow = Frame(root)
+    Label(master=timeDurationRow, text="choose a time duration").pack(side=BOTTOM)
+    timeDurationRow.pack(side=TOP, fill=X, padx=5, pady=5)
+    # combox 
+
+    entryRow = Frame(root)
+    ent1 = Entry(entryRow)
+    ent1.insert(0, 'YYYY-mm-DD HH:MM') # set text
+    ent1.pack(side=BOTTOM)
+    Label(master=entryRow, text="  ~  ").pack(side=BOTTOM)
+    ent2 = Entry(entryRow)
+    ent2.insert(0, 'YYYY-mm-DD HH:MM') # set text
+    ent2.pack(side=BOTTOM)
+    entryRow.pack(side=TOP, fill=X, padx=5, pady=5)
+    root.mainloop()
 
 if __name__=='__main__':
     if len(sys.argv) == 3:
@@ -153,19 +198,17 @@ if __name__=='__main__':
         serverHost = "localhost"
         serverPort = "50000"
     
-    tree = ET.parse('../../SampleDATA/csvData/First.xml')
-    root = tree.getroot()
+    # tree = ET.parse('../../SampleDATA/csvData/First.xml')
+    # root = tree.getroot()
     
     time_data = []
     value = []
     first_line = False
     sock_processing = threading.Thread(name='sock_processing', target=launchServer)
     sock_processing.start()
- 
-    print 'come to sim'
-    sim_object = SimProcessing("Realtime Simulation on Server")
-    time.sleep(2)
-    sim_object.start(time_data, value)
+
+    root = Tk()
+    cre_ctrl_panel(root)
 
     # while True:
     #     time.sleep(1)

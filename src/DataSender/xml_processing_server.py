@@ -10,6 +10,7 @@ from SimProcessing import *
 import threading
 import time 
 from datetime import date, datetime, timedelta
+import dateutil.relativedelta
 import numpy as np
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -51,6 +52,17 @@ def reapChildren():                              # reap any dead child processes
         if not pid: break
         activeChildren.remove(pid)
 
+def db_query(start, end):
+    print start, end
+    # start_date = start.strftime("%Y%m%d")
+    # start_time = start.strftime("%H%M")
+    # end_date = end.strftime("%Y%m%d")
+    # end_time = end.strftime("%H%M")
+    # print start_date, start_time, end_date, end_time
+    conn, cursor = conn_DB("sim_player.db")
+    res = duration_query(cursor, start, end)
+    print res
+    
 def parse_request(request_xml_data):
     request_root = ET.fromstring(request_xml_data)
     print request_root
@@ -102,10 +114,11 @@ def handleClient(connection):                    # child process: reply, exit
             value.append(xml_value.encode())
 
             if len(recv_buf) > 30:
-                conn, cursor = conn_DB()
+                conn, cursor = conn_DB('sim_player.db')
                 lt2str = ''.join(recv_buf)
                 # print lt2str
                 xml_tuple_list = multi_xml2lst(lt2str)
+                print xml_tuple_list
                 # print xml_tuple_list
                 ins_DB(conn, cursor,xml_tuple_list)
                 recv_buf = []
@@ -115,12 +128,6 @@ def handleClient(connection):                    # child process: reply, exit
     print 'cleaning'
     print 'finally close database'
     conn.close()
-    # reply = parse_request(b_data.decode())
-    # b_reply = reply.encode()
-    # length = len(b_reply)
-    # connection.sendall(str(length).encode() + b' ' + b_reply)
-    # connection.close()
-    # print(connection, " is closed")
     os._exit(0)
 
 def launchServer():                                # listen until process killed
@@ -158,37 +165,53 @@ def cre_ctrl_panel(root):
     root.minsize(width=666, height=666)
     buttonRow = Frame(root)
 
-    button1 = Tkinter.Button(master=buttonRow, text='recent one week', command=None)
+    cur = datetime.now()
+    button1_timestamp = datetime.now() - timedelta(days=7)
+    button2_timestamp = datetime.now() - dateutil.relativedelta.relativedelta(months=-1)
+    button3_timestamp = datetime.now() - dateutil.relativedelta.relativedelta(months=-6)
+    
+    button1 = Tkinter.Button(master=buttonRow, text='recent one week',
+                             command=lambda:db_query(button1_timestamp, cur))
     button1.pack(side=Tkinter.LEFT)
-
-    button2 = Tkinter.Button(master=buttonRow, text='last month', command=None)
+    button2 = Tkinter.Button(master=buttonRow, text='last month',
+                             command=lambda:db_query(button2_timestamp, cur))
     button2.pack(side=Tkinter.LEFT)
-
-    button3 = Tkinter.Button(master=buttonRow, text='last six monthes', command=None)
+    button3 = Tkinter.Button(master=buttonRow, text='last six monthes',
+                             command=lambda:db_query(button3_timestamp, cur))
     button3.pack(side=Tkinter.LEFT)
     buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)
-
     button4 = Tkinter.Button(master=buttonRow, text='realtime simulation',
-                             command=lambda : start_real_time_sim(root, time_data, value) )
+                             command=lambda:start_real_time_sim(root, time_data, value))
     button4.pack(side=Tkinter.LEFT)
-    buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)  
-
+    buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)
     
     timeDurationRow = Frame(root)
     Label(master=timeDurationRow, text="choose a time duration").pack(side=BOTTOM)
     timeDurationRow.pack(side=TOP, fill=X, padx=5, pady=5)
-    # combox 
-
+                             
     entryRow = Frame(root)
     ent1 = Entry(entryRow)
-    ent1.insert(0, 'YYYY-mm-DD HH:MM') # set text
-    ent1.pack(side=BOTTOM)
-    Label(master=entryRow, text="  ~  ").pack(side=BOTTOM)
+    ent1.insert(0, 'YYYY-mm-DD HH:MM')
+    ent1.pack(side=LEFT)
+    ent1_date = ent1.get()
+    print ent1_date
+
+    Label(master=entryRow, text="  ~  ").pack(side=LEFT)
     ent2 = Entry(entryRow)
     ent2.insert(0, 'YYYY-mm-DD HH:MM') # set text
-    ent2.pack(side=BOTTOM)
+    ent2.pack(side=LEFT)
+    btn = Button(entryRow, text='Fetch', command=lambda:fetch(ent1, ent2))
+    btn.pack(side=LEFT)
     entryRow.pack(side=TOP, fill=X, padx=5, pady=5)
     root.mainloop()
+
+def fetch(ent1, ent2):
+    start, end = ent1.get(), ent2.get()
+    print start, end
+    start_date = datetime.strptime(start, "%Y-%m-%d %H:%M")
+    end_date = datetime.strptime(end, "%Y-%m-%d %H:%M")
+    print start_date, end_date
+    db_query(start_date, end_date)
 
 if __name__=='__main__':
     if len(sys.argv) == 3:

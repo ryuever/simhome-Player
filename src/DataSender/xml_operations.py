@@ -3,6 +3,7 @@ import os, time, sys, xml.etree.ElementTree as ET
 import json
 import StringIO
 import re
+from datetime import datetime
 
 # {"method":"get", "sender":"First", "date":"2014/07/31", "time":"00:01:00", "type":"int"}
 # {"method":"get", "sender":"", "date":"", "time":"", "type":""}
@@ -195,5 +196,8 @@ def single_xml2lst(xml_data):
 
 def multi_xml2lst(xml_data):
     root = ET.fromstring('<root>\n' + xml_data + '</root>')
-    return [(item.attrib['sender'], item.attrib['date'], item.attrib['time'], item.text) for item in root]
+    res = [(item.attrib['sender'],
+            datetime.strptime(item.attrib['date']+ item.attrib['time'], "%Y%m%d%H:%M"), item.text)
+           for item in root]
+    return res
     

@@ -54,18 +54,35 @@ def reapChildren():                              # reap any dead child processes
         if not pid: break
         activeChildren.remove(pid)
 
-def db_query(start, end):
+def db_inquery(start, end):
     print start, end
     conn, cursor = conn_DB("sim_player.db")
-    res = duration_query(cursor, start, end)
+    res = duration_inquery(cursor, start, end)
     print "duration query result : ", res    
     datetime_list = []
     value_list = []
     for item in res:
-        datetime_list.append(item[1])
+        datetime_list.apend(item[1])
         value_list.append(item[2].encode())
     print datetime_list, value_list
+    
     sim_plotting(root, datetime_list, value_list)
+
+def db_inquery2(start, end, connection):
+    print start, end
+    conn, cursor = conn_DB("sim_player.db")
+    res = duration_inquery(cursor, start, end)
+    print "duration query result : ", res    
+    datetime_list = []
+    value_list = []
+    for item in res:
+        datetime_list.append(item[1].strftime("%Y-%m-%d %H:%M"))
+        value_list.append(item[2].encode())
+    print datetime_list, value_list
+    response = str(datetime_list) + '=' + str(value_list)
+    b_response = response.encode()
+    b_response_len = len(b_response)
+    connection.sendall(str(b_response_len).encode() + b' ' + b_response)    
     
 def parse_request(request_xml_data):
     request_root = ET.fromstring(request_xml_data)
@@ -92,7 +109,7 @@ def parse_request(request_xml_data):
         print("error")
     return request_result
 
-def handleClient(connection):                    # child process: reply, exit
+def handleClient(connection):          # child process: reply, exit
     recv_buf = []
     global time_data, value, first_line
     while True:
@@ -102,7 +119,18 @@ def handleClient(connection):                    # child process: reply, exit
         if recv_str.startswith('control'):
             print 'one control record come'
             # parse_request(recv_str)
-            pass
+            regexpattern = '<|>| |"'
+            splited_data = re.split(regexpattern, recv_str)
+            request_method = splited_data[4]
+            request_datetime_start_date = splited_data[12]
+            request_datetime_start_time = splited_data[13]
+            request_datetime_end_date = splited_data[16]
+            request_datetime_end_time = splited_data[17]
+            datetime_start = datetime.strptime(request_datetime_start_date + ' ' + request_datetime_start_time, "%Y-%m-%d %H:%M")
+            datetime_end = datetime.strptime(request_datetime_end_date + ' ' + request_datetime_end_time, "%Y-%m-%d %H:%M")
+            print datetime_start, datetime_end
+            db_inquery2(datetime_start, datetime_end, connection)
+            # db_query
         else:
             recv_buf.append(recv_str)
             xml_sender, xml_date, xml_time, xml_value = single_xml2lst(recv_str)
@@ -196,7 +224,7 @@ def datetime_duration_submit(date_start_button,
     print type(datetime.strptime(datetime_start, "%Y-%m-%d %H:%M"))
     print datetime.strptime(datetime_end, "%Y-%m-%d %H:%M")
     
-    db_query(datetime_start, datetime_end)
+    db_inquery(datetime.strptime(datetime_start, "%Y-%m-%d %H:%M"), datetime.strptime(datetime_end, "%Y-%m-%d %H:%M"))
     
 def cre_ctrl_panel(root):
     root.wm_title("Simulation Control Panel -- Server")
@@ -209,22 +237,18 @@ def cre_ctrl_panel(root):
     button3_timestamp = datetime.now() - dateutil.relativedelta.relativedelta(months=-6)
     
     button1 = Tkinter.Button(master=buttonRow, text='recent one week',
-                             command=lambda:db_query(button1_timestamp, cur))
+                             command=lambda:db_inquery(button1_timestamp, cur))
     button1.grid(row=0, column=0)
     button2 = Tkinter.Button(master=buttonRow, text='last month',
-                             command=lambda:db_query(button2_timestamp, cur))
+                             command=lambda:db_inquery(button2_timestamp, cur))
     button2.grid(row=0, column=1)
     button3 = Tkinter.Button(master=buttonRow, text='last six monthes',
-                             command=lambda:db_query(button3_timestamp, cur))
+                             command=lambda:db_inquery(button3_timestamp, cur))
     button3.grid(row=0, column=2)
     button4 = Tkinter.Button(master=buttonRow, text='realtime simulation',
                              command=lambda:start_real_time_sim(root, time_data, value))
     button4.grid(row=0, column=3)
     buttonRow.grid(row=0, column=0)
-    
-    timeDurationRow = Frame(root)
-    Label(master=timeDurationRow, text="choose a timestamp").grid(row=1, column=0)
-    timeDurationRow.grid(row=1, column=0)
 
     # usd to specify a datetime duration
     time_hr_option = []
@@ -239,39 +263,38 @@ def cre_ctrl_panel(root):
     datetime_start_date = ''
     datetime_end_date = ''
     
-    datetime_duration_frame = Frame(root,border=1)
+    # datetime_duration_frame = Frame(root,borderwidth=10, highlightbackground=COLOR)
+    datetime_duration_frame = Frame(root, borderwidth = 1, relief = SUNKEN, pady=20)
+    Label(master=datetime_duration_frame, text="choose a timestamp").grid(row=0, column=2)
+
+    today = date.today().strftime("%Y-%m-%d")
     # starting datetime
-    datetime_start_label = Label(datetime_duration_frame, text="start time").grid(row=0, column=0)
-    date_start_button = Tkinter.Button(datetime_duration_frame, text="Click me to get a start date!",
+    datetime_start_label = Label(datetime_duration_frame, text="start time").grid(row=1, column=0)
+    date_start_button = Tkinter.Button(datetime_duration_frame, text=today,
                                        command=lambda:onclick(date_start_button, root, datetime_start_date))
-    date_start_button.grid(row=0,column=1)
+    date_start_button.grid(row=1,column=1)
     time_start_hr_var = StringVar(datetime_duration_frame)
     time_start_hr_var.set("00") # default value
     time_start_hr = apply(OptionMenu, (datetime_duration_frame, time_start_hr_var) + tuple(time_hr_option))
-    time_start_hr.grid(row=0, column=2)
+    time_start_hr.grid(row=1, column=2)
     time_start_min_var = StringVar(datetime_duration_frame)
     time_start_min_var.set("00") # default value
     time_start_min = apply(OptionMenu, (datetime_duration_frame, time_start_min_var) + tuple(time_min_option))
-    time_start_min.grid(row=0, column=3)    
+    time_start_min.grid(row=1, column=3)
+    
     # end datetime 
-    datetime_end_label = Label(datetime_duration_frame, text="end time").grid(row=1, column=0)
-    date_end_button = Tkinter.Button(datetime_duration_frame, text="Click me to get an end date!",
+    datetime_end_label = Label(datetime_duration_frame, text="end time").grid(row=2, column=0)
+    date_end_button = Tkinter.Button(datetime_duration_frame, text=today,
                                      command=lambda:onclick(date_end_button, root, datetime_end_date))
-    date_end_button.grid(row=1,column=1)
-    time_end_button_hr = Menubutton(datetime_duration_frame, text='00', relief=RAISED)
-    time_end_button_hr.grid(row=1, column=2)
-    time_end_button_min = Menubutton(datetime_duration_frame, text='00', relief=RAISED)
-    time_end_button_min.grid(row=1, column=3)
-    datetime_duration_frame.grid(row=2, column=0)
+    date_end_button.grid(row=2,column=1)
     time_end_hr_var = StringVar(datetime_duration_frame)
     time_end_hr_var.set("00") # default value
     time_end_hr = apply(OptionMenu, (datetime_duration_frame, time_end_hr_var) + tuple(time_hr_option))
-    time_end_hr.grid(row=1, column=2)
-
+    time_end_hr.grid(row=2, column=2)
     time_end_min_var = StringVar(datetime_duration_frame)
     time_end_min_var.set("00") # default value
     time_end_min = apply(OptionMenu, (datetime_duration_frame, time_end_min_var) + tuple(time_min_option))
-    time_end_min.grid(row=1, column=3)
+    time_end_min.grid(row=2, column=3)
 
     datetime_submit = Tkinter.Button(master=datetime_duration_frame, text='submit',
                                     command=lambda:datetime_duration_submit(date_start_button, date_end_button,
@@ -281,7 +304,7 @@ def cre_ctrl_panel(root):
     datetime_quit = Tkinter.Button(master=datetime_duration_frame, text='reset',
                                    command=lambda:datetime_duration_quit())
     datetime_quit.grid(row=3, column=2)
-                                    
+    datetime_duration_frame.grid(row=5, column=0)                                    
     root.mainloop()
 
 def fetch(ent1, ent2):
@@ -290,7 +313,7 @@ def fetch(ent1, ent2):
     start_date = datetime.strptime(start, "%Y-%m-%d %H:%M")
     end_date = datetime.strptime(end, "%Y-%m-%d %H:%M")
     print start_date, end_date
-    db_query(start_date, end_date)
+    db_inquery(start_date, end_date)
 
 if __name__=='__main__':
     if len(sys.argv) == 3:

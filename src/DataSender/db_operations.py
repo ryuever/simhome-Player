@@ -35,7 +35,7 @@ def ins_DB(conn, cursor, tuple_list):
     cursor.executemany(sql_stmt, tuple_list)
     conn.commit()
     
-def duration_query(cursor, start_datetime, end_datetime):
+def duration_inquery(cursor, start_datetime, end_datetime):
     sql = '''
     select * from sim where 
     time >= ? and

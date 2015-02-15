@@ -1,15 +1,16 @@
 import sys,io, os
 from socket import *                # portable socket interface plus constants
-import time
 from Tkinter import *
 import Tkinter
 import threading
-from xml_operations import *
-import time
-from datetime import date, datetime, timedelta
-
-import numpy as np
 from SimProcessing import *
+from xml_operations import *
+import time 
+from datetime import date, datetime, timedelta
+import dateutil.relativedelta
+import numpy as np
+from tk_calendar import *
+from CalendarDialog import *
 
 # import socket
 # from SimProcessing import *
@@ -58,6 +59,46 @@ def recvall(sock):
         amount_received += len(more)
     return data
 
+# arguments should be datetime object
+def inquery_request(root, datetime_start, datetime_end):
+    datetime_start_str = datetime_start.strftime("%Y-%m-%d %H:%M")
+    datetime_end_str = datetime_end.strftime("%Y-%m-%d %H:%M")
+
+    request = 'control <root method="inquery"><value send="" datetime_start="' \
+              + datetime_start_str + '" datetime_end="' + datetime_end_str + '"></value></root>'
+    b_request = request.encode()
+    b_request_len = len(b_request)
+    print request
+    sockobj.sendall(str(b_request_len).encode() + b' ' + b_request)
+    recv_data = recvall(sockobj)
+    print recv_data.decode()
+    splited_data = recv_data.decode().split("=")
+    datetime_data = splited_data[0]
+    datetime_temp_list = datetime_data.strip('[]').split(',')
+    datetime_list = []
+    for item in datetime_temp_list:
+        print item
+        datetime_list.append(datetime.strptime(item.strip(" '"),"%Y-%m-%d %H:%M"))
+    print datetime_list
+
+    value_data = splited_data[1]
+    value_temp_list = value_data.strip('[]').split(',')
+    value_list = []
+    for item in value_temp_list:
+        value_list.append(int(item.strip(" '")))
+    print value_list
+
+    sim_plotting(root, datetime_list, value_list)
+
+def onclick(clicked_button, root, selected_date):
+    cd = CalendarDialog(root)
+
+    # cd is a datetime
+    selected_date = cd.result.strftime("%Y-%m-%d")
+    print "selected_date : ", selected_date
+    clicked_button.config(text=selected_date)
+    print cd.result
+
 def send_xml_every_second():
     global first_line, time_data, value
     exec_path = os.path.dirname(os.path.abspath(__file__))
@@ -72,7 +113,7 @@ def send_xml_every_second():
             sockobj.sendall(str(xml_len).encode() + b' ' +xml_text)
 
             xml_sender, xml_date, xml_time, xml_value = single_xml2lst(line)
-            py_date = datetime.datetime.strptime(xml_date + ' ' + xml_time,  '%Y%m%d %H:%M')            
+            py_date = datetime.strptime(xml_date + ' ' + xml_time,  '%Y%m%d %H:%M')            
             # print 'py_date : ', py_date
             if first_line == False:
                 for i in reversed(range(100)):
@@ -83,50 +124,114 @@ def send_xml_every_second():
             time_data.append(py_date)
             value.append(xml_value.encode())
 
-
 def start_real_time_sim(root, time_data, value):
     print 'come to sim'
     sim_object = SimProcessing("Realtime Simulation on Client", root)
-    time.sleep(2)
     sim_object.start(time_data, value)
+
+def datetime_duration_submit(date_start_button,
+                             date_end_button,
+                             time_start_hr_var,
+                             time_start_min_var,
+                             time_end_hr_var,
+                             time_end_min_var):
+    print date_start_button['text']
+    print date_end_button['text']
+    datetime_start_time_hr = time_start_hr_var.get()
+    datetime_start_time_min = time_start_min_var.get()
+    datetime_end_time_hr = time_end_hr_var.get()
+    datetime_end_time_min = time_end_min_var.get()
+
+    datetime_start = date_start_button['text'] + ' ' + datetime_start_time_hr + ":" + datetime_start_time_min
+    datetime_end = date_end_button['text'] + ' ' + datetime_end_time_hr + ":" + datetime_end_time_min
+    print "datetime_start, datetime_end", datetime_start, datetime_end
+    print type(datetime.strptime(datetime_start, "%Y-%m-%d %H:%M"))
+    print datetime.strptime(datetime_end, "%Y-%m-%d %H:%M")
+    
+    # inquery_request(datetime_start, datetime_end)
+    inquery_request(root, datetime.strptime(datetime_start, "%Y-%m-%d %H:%M"), datetime.strptime(datetime_end, "%Y-%m-%d %H:%M"))
     
 def cre_ctrl_panel(root):
-    print 'create table'
     root.wm_title("Simulation Control Panel -- Client")
     root.minsize(width=666, height=666)
     buttonRow = Frame(root)
 
-    button1 = Tkinter.Button(master=buttonRow, text='recent one week', command=None)
-    button1.pack(side=Tkinter.LEFT)
-
-    button2 = Tkinter.Button(master=buttonRow, text='last month', command=None)
-    button2.pack(side=Tkinter.LEFT)
-
-    button3 = Tkinter.Button(master=buttonRow, text='last six monthes', command=None)
-    button3.pack(side=Tkinter.LEFT)
-    buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)
-
-    button4 = Tkinter.Button(master=buttonRow, text='realtime simulation',
-                             command=lambda : start_real_time_sim(root, time_data, value) )
-    button4.pack(side=Tkinter.LEFT)
-    buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)  
-
+    cur = datetime.now()
+    button1_timestamp = datetime.now() - timedelta(days=7)
+    button2_timestamp = datetime.now() - dateutil.relativedelta.relativedelta(months=-1)
+    button3_timestamp = datetime.now() - dateutil.relativedelta.relativedelta(months=-6)
     
-    timeDurationRow = Frame(root)
-    Label(master=timeDurationRow, text="choose a time duration").pack(side=BOTTOM)
-    timeDurationRow.pack(side=TOP, fill=X, padx=5, pady=5)
-    # combox 
+    button1 = Tkinter.Button(master=buttonRow, text='recent one week',
+                             command=lambda:inquery_request(root, button1_timestamp, cur))
+    button1.grid(row=0, column=0)
+    button2 = Tkinter.Button(master=buttonRow, text='last month',
+                             command=lambda:inquery_request(root, button2_timestamp, cur))
+    button2.grid(row=0, column=1)
+    button3 = Tkinter.Button(master=buttonRow, text='last six monthes',
+                             command=lambda:inquery_request(root, button3_timestamp, cur))
+    button3.grid(row=0, column=2)
+    button4 = Tkinter.Button(master=buttonRow, text='realtime simulation',
+                             command=lambda:start_real_time_sim(root, time_data, value))
+    button4.grid(row=0, column=3)
+    buttonRow.grid(row=0, column=0)
+    
+    # usd to specify a datetime duration
+    time_hr_option = []
+    time_min_option = []
+    for i in range(23):
+        time_hr_option.append("{0:0=2d}".format(i))
 
-    entryRow = Frame(root)
-    ent1 = Entry(entryRow)
-    ent1.insert(0, 'YYYY-mm-DD HH:MM') # set text
-    ent1.pack(side=BOTTOM)
-    Label(master=entryRow, text="  ~  ").pack(side=BOTTOM)
-    ent2 = Entry(entryRow)
-    ent2.insert(0, 'YYYY-mm-DD HH:MM') # set text
-    ent2.pack(side=BOTTOM)
-    entryRow.pack(side=TOP, fill=X, padx=5, pady=5)
+    for i in range(59):
+        time_min_option.append(i+1)
+
+    # for datetime using variables
+    datetime_start_date = ''
+    datetime_end_date = ''
+    
+    # datetime_duration_frame = Frame(root,borderwidth=10, highlightbackground=COLOR)
+    datetime_duration_frame = Frame(root, borderwidth = 1, relief = SUNKEN, pady=20)
+    Label(master=datetime_duration_frame, text="choose a timestamp").grid(row=0, column=2)
+
+    today = date.today().strftime("%Y-%m-%d")
+    # starting datetime
+    datetime_start_label = Label(datetime_duration_frame, text="start time").grid(row=1, column=0)
+    date_start_button = Tkinter.Button(datetime_duration_frame, text=today,
+                                       command=lambda:onclick(date_start_button, root, datetime_start_date))
+    date_start_button.grid(row=1,column=1)
+    time_start_hr_var = StringVar(datetime_duration_frame)
+    time_start_hr_var.set("00") # default value
+    time_start_hr = apply(OptionMenu, (datetime_duration_frame, time_start_hr_var) + tuple(time_hr_option))
+    time_start_hr.grid(row=1, column=2)
+    time_start_min_var = StringVar(datetime_duration_frame)
+    time_start_min_var.set("00") # default value
+    time_start_min = apply(OptionMenu, (datetime_duration_frame, time_start_min_var) + tuple(time_min_option))
+    time_start_min.grid(row=1, column=3)
+    
+    # end datetime 
+    datetime_end_label = Label(datetime_duration_frame, text="end time").grid(row=2, column=0)
+    date_end_button = Tkinter.Button(datetime_duration_frame, text=today,
+                                     command=lambda:onclick(date_end_button, root, datetime_end_date))
+    date_end_button.grid(row=2,column=1)
+    time_end_hr_var = StringVar(datetime_duration_frame)
+    time_end_hr_var.set("00") # default value
+    time_end_hr = apply(OptionMenu, (datetime_duration_frame, time_end_hr_var) + tuple(time_hr_option))
+    time_end_hr.grid(row=2, column=2)
+    time_end_min_var = StringVar(datetime_duration_frame)
+    time_end_min_var.set("00") # default value
+    time_end_min = apply(OptionMenu, (datetime_duration_frame, time_end_min_var) + tuple(time_min_option))
+    time_end_min.grid(row=2, column=3)
+
+    datetime_submit = Tkinter.Button(master=datetime_duration_frame, text='submit',
+                                    command=lambda:datetime_duration_submit(date_start_button, date_end_button,
+                                                                            time_start_hr_var, time_start_min_var,
+                                                                            time_end_hr_var, time_end_min_var))
+    datetime_submit.grid(row=3, column=0)
+    datetime_quit = Tkinter.Button(master=datetime_duration_frame, text='reset',
+                                   command=lambda:datetime_duration_quit())
+    datetime_quit.grid(row=3, column=2)
+    datetime_duration_frame.grid(row=5, column=0)                                    
     root.mainloop()
+    
 
 time_data = []
 value = []

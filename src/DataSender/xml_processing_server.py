@@ -12,6 +12,8 @@ import time
 from datetime import date, datetime, timedelta
 import dateutil.relativedelta
 import numpy as np
+from tk_calendar import *
+from CalendarDialog import *
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
@@ -54,14 +56,9 @@ def reapChildren():                              # reap any dead child processes
 
 def db_query(start, end):
     print start, end
-    # start_date = start.strftime("%Y%m%d")
-    # start_time = start.strftime("%H%M")
-    # end_date = end.strftime("%Y%m%d")
-    # end_time = end.strftime("%H%M")
-    # print start_date, start_time, end_date, end_time
     conn, cursor = conn_DB("sim_player.db")
     res = duration_query(cursor, start, end)
-
+    print "duration query result : ", res    
     datetime_list = []
     value_list = []
     for item in res:
@@ -162,11 +159,46 @@ def launchServer():                                # listen until process killed
 def start_real_time_sim(root, time_data, value):
     print 'come to sim'
     sim_object = SimProcessing("Realtime Simulation on Server", root)
-    time.sleep(2)
+    
+    # 2 second for simulator initialization
+    # time.sleep(2)
     sim_object.start(time_data, value)
-        
+
+def onclick(clicked_button, root, selected_date):
+    cd = CalendarDialog(root)
+
+    # cd is a datetime
+    selected_date = cd.result.strftime("%Y-%m-%d")
+    print "selected_date : ", selected_date
+    clicked_button.config(text=selected_date)
+    print cd.result
+
+def sel(hr_select):
+    selection = "Value = " + str(hr_select.get())
+    print "selected date : ", selection
+
+def datetime_duration_submit(date_start_button,
+                             date_end_button,
+                             time_start_hr_var,
+                             time_start_min_var,
+                             time_end_hr_var,
+                             time_end_min_var):
+    print date_start_button['text']
+    print date_end_button['text']
+    datetime_start_time_hr = time_start_hr_var.get()
+    datetime_start_time_min = time_start_min_var.get()
+    datetime_end_time_hr = time_end_hr_var.get()
+    datetime_end_time_min = time_end_min_var.get()
+
+    datetime_start = date_start_button['text'] + ' ' + datetime_start_time_hr + ":" + datetime_start_time_min
+    datetime_end = date_end_button['text'] + ' ' + datetime_end_time_hr + ":" + datetime_end_time_min
+    print "datetime_start, datetime_end", datetime_start, datetime_end
+    print type(datetime.strptime(datetime_start, "%Y-%m-%d %H:%M"))
+    print datetime.strptime(datetime_end, "%Y-%m-%d %H:%M")
+    
+    db_query(datetime_start, datetime_end)
+    
 def cre_ctrl_panel(root):
-    print 'create table'
     root.wm_title("Simulation Control Panel -- Server")
     root.minsize(width=666, height=666)
     buttonRow = Frame(root)
@@ -178,37 +210,78 @@ def cre_ctrl_panel(root):
     
     button1 = Tkinter.Button(master=buttonRow, text='recent one week',
                              command=lambda:db_query(button1_timestamp, cur))
-    button1.pack(side=Tkinter.LEFT)
+    button1.grid(row=0, column=0)
     button2 = Tkinter.Button(master=buttonRow, text='last month',
                              command=lambda:db_query(button2_timestamp, cur))
-    button2.pack(side=Tkinter.LEFT)
+    button2.grid(row=0, column=1)
     button3 = Tkinter.Button(master=buttonRow, text='last six monthes',
                              command=lambda:db_query(button3_timestamp, cur))
-    button3.pack(side=Tkinter.LEFT)
-    buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)
+    button3.grid(row=0, column=2)
     button4 = Tkinter.Button(master=buttonRow, text='realtime simulation',
                              command=lambda:start_real_time_sim(root, time_data, value))
-    button4.pack(side=Tkinter.LEFT)
-    buttonRow.pack(side=TOP, fill=X, padx=5, pady=5)
+    button4.grid(row=0, column=3)
+    buttonRow.grid(row=0, column=0)
     
     timeDurationRow = Frame(root)
-    Label(master=timeDurationRow, text="choose a time duration").pack(side=BOTTOM)
-    timeDurationRow.pack(side=TOP, fill=X, padx=5, pady=5)
-                             
-    entryRow = Frame(root)
-    ent1 = Entry(entryRow)
-    ent1.insert(0, 'YYYY-mm-DD HH:MM')
-    ent1.pack(side=LEFT)
-    ent1_date = ent1.get()
-    print ent1_date
+    Label(master=timeDurationRow, text="choose a timestamp").grid(row=1, column=0)
+    timeDurationRow.grid(row=1, column=0)
 
-    Label(master=entryRow, text="  ~  ").pack(side=LEFT)
-    ent2 = Entry(entryRow)
-    ent2.insert(0, 'YYYY-mm-DD HH:MM') # set text
-    ent2.pack(side=LEFT)
-    btn = Button(entryRow, text='Fetch', command=lambda:fetch(ent1, ent2))
-    btn.pack(side=LEFT)
-    entryRow.pack(side=TOP, fill=X, padx=5, pady=5)
+    # usd to specify a datetime duration
+    time_hr_option = []
+    time_min_option = []
+    for i in range(23):
+        time_hr_option.append("{0:0=2d}".format(i))
+
+    for i in range(59):
+        time_min_option.append(i+1)
+
+    # for datetime using variables
+    datetime_start_date = ''
+    datetime_end_date = ''
+    
+    datetime_duration_frame = Frame(root,border=1)
+    # starting datetime
+    datetime_start_label = Label(datetime_duration_frame, text="start time").grid(row=0, column=0)
+    date_start_button = Tkinter.Button(datetime_duration_frame, text="Click me to get a start date!",
+                                       command=lambda:onclick(date_start_button, root, datetime_start_date))
+    date_start_button.grid(row=0,column=1)
+    time_start_hr_var = StringVar(datetime_duration_frame)
+    time_start_hr_var.set("00") # default value
+    time_start_hr = apply(OptionMenu, (datetime_duration_frame, time_start_hr_var) + tuple(time_hr_option))
+    time_start_hr.grid(row=0, column=2)
+    time_start_min_var = StringVar(datetime_duration_frame)
+    time_start_min_var.set("00") # default value
+    time_start_min = apply(OptionMenu, (datetime_duration_frame, time_start_min_var) + tuple(time_min_option))
+    time_start_min.grid(row=0, column=3)    
+    # end datetime 
+    datetime_end_label = Label(datetime_duration_frame, text="end time").grid(row=1, column=0)
+    date_end_button = Tkinter.Button(datetime_duration_frame, text="Click me to get an end date!",
+                                     command=lambda:onclick(date_end_button, root, datetime_end_date))
+    date_end_button.grid(row=1,column=1)
+    time_end_button_hr = Menubutton(datetime_duration_frame, text='00', relief=RAISED)
+    time_end_button_hr.grid(row=1, column=2)
+    time_end_button_min = Menubutton(datetime_duration_frame, text='00', relief=RAISED)
+    time_end_button_min.grid(row=1, column=3)
+    datetime_duration_frame.grid(row=2, column=0)
+    time_end_hr_var = StringVar(datetime_duration_frame)
+    time_end_hr_var.set("00") # default value
+    time_end_hr = apply(OptionMenu, (datetime_duration_frame, time_end_hr_var) + tuple(time_hr_option))
+    time_end_hr.grid(row=1, column=2)
+
+    time_end_min_var = StringVar(datetime_duration_frame)
+    time_end_min_var.set("00") # default value
+    time_end_min = apply(OptionMenu, (datetime_duration_frame, time_end_min_var) + tuple(time_min_option))
+    time_end_min.grid(row=1, column=3)
+
+    datetime_submit = Tkinter.Button(master=datetime_duration_frame, text='submit',
+                                    command=lambda:datetime_duration_submit(date_start_button, date_end_button,
+                                                                            time_start_hr_var, time_start_min_var,
+                                                                            time_end_hr_var, time_end_min_var))
+    datetime_submit.grid(row=3, column=0)
+    datetime_quit = Tkinter.Button(master=datetime_duration_frame, text='reset',
+                                   command=lambda:datetime_duration_quit())
+    datetime_quit.grid(row=3, column=2)
+                                    
     root.mainloop()
 
 def fetch(ent1, ent2):
@@ -227,9 +300,6 @@ if __name__=='__main__':
         serverHost = "localhost"
         serverPort = "50000"
     
-    # tree = ET.parse('../../SampleDATA/csvData/First.xml')
-    # root = tree.getroot()
-    
     time_data = []
     value = []
     first_line = False
@@ -238,25 +308,3 @@ if __name__=='__main__':
 
     root = Tk()
     cre_ctrl_panel(root)
-
-    # while True:
-    #     time.sleep(1)
-    #     print 'sim loop'
-    #     print "used for simulation : ",time_data, value        
-    #     sim_object.realtimePloter(time_data, value)
-
-    # childPid = os.fork()
-    # if childPid == 0:
-    #     print 'socket processing'
-    #     launchServer()
-    # else:        
-    #     print 'come to sim'
-    #     while True:
-
-
-        # 
-        # while True:
-        #     print 'in sim loop'
-        #     time.sleep(1)
-        #     print time_data, value
-        #     sim_object.realtimePloter(time_data, value)

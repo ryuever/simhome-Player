@@ -62,7 +62,7 @@ def db_inquery(start, end):
     datetime_list = []
     value_list = []
     for item in res:
-        datetime_list.apend(item[1])
+        datetime_list.append(item[1])
         value_list.append(item[2].encode())
     print datetime_list, value_list
     
@@ -79,7 +79,8 @@ def db_inquery2(start, end, connection):
         datetime_list.append(item[1].strftime("%Y-%m-%d %H:%M"))
         value_list.append(item[2].encode())
     print datetime_list, value_list
-    response = str(datetime_list) + '=' + str(value_list)
+    # response = "datetime_list=" + str(datetime_list) + ' ' + "value_list=" + str(value_list)
+    response = str(datetime_list) + '=' +str(value_list)
     b_response = response.encode()
     b_response_len = len(b_response)
     connection.sendall(str(b_response_len).encode() + b' ' + b_response)    

@@ -22,7 +22,7 @@ def sim_plotting(master, datetime_list, value_list):
     ax = fig.add_subplot(111)
     ax.grid(True)
     ax.set_title("Query simulation")
-    ax.set_ylabel("generated power")
+    ax.set_ylabel("generated power(kWh)")
     ax.axis([datetime_list[0], datetime_list[-1], 0, 100])    
     ax.xaxis.set_major_formatter(DateFormatter('%H:%M') )
     ax.xaxis.set_major_locator(MinuteLocator(interval=5))
@@ -58,7 +58,7 @@ class SimProcessing():
         self.ax = self.fig.add_subplot(111)
         self.ax.grid(True)
         self.ax.set_title("Realtime Simulation")
-        self.ax.set_ylabel("generated power")
+        self.ax.set_ylabel("generated power(kWh)")
         self.line1 = ''
         # print self.init_date, self.init_value
         self.ax.axis([self.init_date[0], self.init_date[-1], 0, 100])    
@@ -136,7 +136,6 @@ class SimProcessing():
         self.root.after(1000,self.realtimePloter, time_data, value)
         # Tkinter.mainloop()
         self.root.mainloop()
-
 
 if __name__=='__main__':
     sim_object = SimProcessing()

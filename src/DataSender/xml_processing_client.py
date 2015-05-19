@@ -99,6 +99,7 @@ def onclick(clicked_button, root, selected_date):
     clicked_button.config(text=selected_date)
     print cd.result
 
+    # every time
 def send_xml_every_second():
     global first_line, time_data, value
     exec_path = os.path.dirname(os.path.abspath(__file__))

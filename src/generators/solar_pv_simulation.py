@@ -92,29 +92,53 @@ def recv_climate_data(sockobj,q):
                 modeled_power.append(tmp_modeled_power)
                 # measured_pow.append(real_data['measured_pow'])
                 measured_pow.append(0)
+                measured_radiation.append(0)
+                measured_ws.append(0)
+                measured_temp.append(0)
                 # mutex.release()
             # print("initialized modeled power", modeled_power)
             # print("initialized sim timestamp", sim_timestamp)
         else:
-            # mutex.acquire()
+            mutex.acquire()
             modeled_power.append(tmp_modeled_power)
             measured_pow.append(real_data['measured_pow'])
+
+            measured_radiation.append(real_data['radiation'])
+            measured_ws.append(real_data['ws'])
+            measured_temp.append(real_data['temp'])
             print("appended timestamp : ", tmp_sim_timestamp)
             sim_timestamp.append(datetime.strptime(tmp_sim_timestamp, '%Y/%m/%d %H:%M:%S'))
-            # mutex.release()
+            mutex.release()
             # print("out 4")            
 
 # def simulation(ax, fig, line, canvas, mutex, sim_timestamp, modeled_power):
-def simulation(ax, fig, line, line2, canvas):
+def simulation(ax, fig, line, line2, line3, line4, line5, canvas):
     # global sim_timestamp, modeled_power
-    ax.grid(True)
-    ax.set_title('realtime simulation for wind power')
-    ax.set_ylabel('wind power(wh)')
+    ax[0, 0].grid(True)
+    ax[0, 0].set_title('realtime simulation for generated power')
+    ax[0, 0].set_ylabel('generated power(wh)')
 
-    # mutex.acquire()
+    ax[0, 1].grid(True)
+    ax[0, 1].set_title('realtime simulation for wind speed')
+    ax[0, 1].set_ylabel('wind speed(m/s)')
+
+    ax[1, 0].grid(True)
+    ax[1, 0].set_title('realtime simulation for measured radiation')
+    ax[1, 0].set_ylabel('measured radiation')
+
+    ax[1, 1].grid(True)
+    ax[1, 1].set_title('realtime simulation for measured temperature')
+    ax[1, 1].set_ylabel('measured temperature')
+
+    
+    mutex.acquire()
     # print("[-100]", (sim_timestamp[-100:], modeled_power[-100:]))
     line[0].set_data(sim_timestamp[-100:], modeled_power[-100:])
     line2[0].set_data(sim_timestamp[-100:], measured_pow[-100:])
+    line3[0].set_data(sim_timestamp[-100:], measured_radiation[-100:])
+
+    line4[0].set_data(sim_timestamp[-100:], measured_ws[-100:])
+    line5[0].set_data(sim_timestamp[-100:], measured_temp[-100:])
     len_value = len(sim_timestamp)
 
     m_left_index = len_value - 100
@@ -122,9 +146,19 @@ def simulation(ax, fig, line, line2, canvas):
 
     # print("left ", m_left_index, m_right_index, len(sim_timestamp), len(modeled_power))
     # print("left value", sim_timestamp[m_left_index], sim_timestamp[m_right_index])
-    ax.axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 3000])
-    ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))
+    ax[0, 0].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 3000])
+    ax[0, 0].xaxis.set_major_formatter(DateFormatter('%H:%M'))
+
+    ax[0, 1].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 30])
+    ax[0, 1].xaxis.set_major_formatter(DateFormatter('%H:%M'))
+
     
+    ax[1, 0].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 3000])
+    ax[1, 0].xaxis.set_major_formatter(DateFormatter('%H:%M'))
+
+    ax[1, 1].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 50])
+    ax[1, 1].xaxis.set_major_formatter(DateFormatter('%H:%M'))
+
     m_left_date = sim_timestamp[m_left_index].date()
     m_right_date = sim_timestamp[m_right_index].date()
     # mutex.release()
@@ -132,22 +166,30 @@ def simulation(ax, fig, line, line2, canvas):
     
     list_x_label = []
     if m_left_date == m_right_date:
-        ax.set_xlabel(m_left_date.strftime("%Y-%m-%d"))
+        ax[0,0].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
+        ax[0,1].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
+        ax[1,0].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
+        ax[1,1].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
     else:
         diff_days = m_right_date - m_left_date
         int_diff_days = diff_days.days + 1
         for i in range(int_diff_days):
             date_str = (m_left_date + timedelta(days=i)).strftime("%Y-%m-%d")
             list_x_label.append(date_str)
-        ax.set_xlabel("   ".join(list_x_label))
+        ax[0, 0].set_xlabel("   ".join(list_x_label))
+        ax[0, 1].set_xlabel("   ".join(list_x_label))
+        ax[1, 0].set_xlabel("   ".join(list_x_label))
+        ax[1, 1].set_xlabel("   ".join(list_x_label))
 
     plt.setp(plt.gca().get_xticklabels(), rotation=45, horizontalalignment='right')
     plt.subplots_adjust(bottom=0.2)
     canvas.get_tk_widget().pack(side=Tkinter.TOP, fill=Tkinter.BOTH, expand=1)
-    # print("sim_timestamp, modeled_power", list(sim_timestamp))
+    print("sim_timestamp, modeled_power", list(sim_timestamp), len(modeled_power), len(measured_pow), len(measured_temp), len(measured_ws), len(sim_timestamp))
     canvas.show()
+    mutex.release()
+    
     # print(sim_timestamp[-10:])
-    root.after(500, simulation,ax, fig, line, line2, canvas)
+    root.after(500, simulation,ax, fig, line, line2,line3, line4, line5, canvas)
             
 class SolarPVSim(object):
     def __init__(self, V_max = 43.4, Voc_max = 53, Voc_temp_coeff = -0.147, module_Tcoeff = -0.336, 
@@ -338,6 +380,10 @@ if __name__ == "__main__":
     sim_timestamp = manager.list()
     modeled_power = manager.list()
     measured_pow = manager.list()
+
+    measured_radiation = manager.list()
+    measured_ws = manager.list()
+    measured_temp = manager.list()
     # mutex.release()
     print("out 1")
     first = True
@@ -351,7 +397,7 @@ if __name__ == "__main__":
     recv_cli_data.start()
 
     root = Tkinter.Tk()
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(2, 2)
 
     time.sleep(2)
     # print("len(modeled_power), len(sim_timestamp)", len(modeled_power), len(sim_timestamp), modeled_power, sim_timestamp)
@@ -359,13 +405,20 @@ if __name__ == "__main__":
     # with mutex :
         # mutex.acquire()
     print("begining 2")
-    line = ax.plot(sim_timestamp, modeled_power)
-    line2 = ax.plot(sim_timestamp, measured_pow)
+    mutex.acquire()
+    line = ax[0, 0].plot(sim_timestamp, modeled_power)
+    line2 = ax[0, 0].plot(sim_timestamp, measured_pow)
+
+    line3 = ax[1, 0].plot(sim_timestamp, measured_radiation)
+
+    line4 = ax[0, 1].plot(sim_timestamp, measured_ws)
+
+    line5 = ax[1, 1].plot(sim_timestamp, measured_temp)
+    mutex.release()
         # mutex.release()
-    print("out 2")
     canvas = FigureCanvasTkAgg(fig, master=root)
 
-    root.after(500,simulation, ax, fig, line, line2, canvas)
+    root.after(500,simulation, ax, fig, line, line2, line3, line4, line5, canvas)
     # root.after(1000,simulation, ax, fig, line, canvas)
 
     root.mainloop()

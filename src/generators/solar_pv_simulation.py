@@ -1,62 +1,36 @@
 from __future__ import division
 import sys
-import time
+from time import sleep
 from socket import *
 import xml.etree.ElementTree as ET
 from multiprocessing import Process, Manager, Queue
-from datetime import timedelta
+import datetime
+from datetime import timedelta, datetime, time
 # from testRatio import *
 # from unit_conversion import *
 import unit_conversion
 from math import exp
 # from ClimateReader import *
-from datetime import datetime
+
 import Tkinter
-import itertools
 import matplotlib.pyplot as plt
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.dates import DayLocator, HourLocator, DateFormatter, drange, MinuteLocator
 import threading
-
 from SolarAngle import *
 from wind_4k import *
+import struct
+from utilities import *
+import os
 
-# def ac_output(V_In, VA_In):
-#     C1 = p_dco*(1+c_1*(V_In-v_dco));
-#     C2 = p_so*(1+c_2*(V_In-v_dco));
-#     C3 = c_o*(1+c_3*(V_In-v_dco));
-#     VA_Out = ((p_max/(C1-C2))-C3*(C1-C2))*(VA_In-C2)+C3*(VA_In-C2)*(VA_In-C2)
-#     return VA_Out
-
-def seq(start, end, step):
-    """
-    Purpose : support for float step in a range-like function
-    """
-    assert(step != 0)
-    sample_count = abs(end - start) / step
-    return itertools.islice(itertools.count(start, step), sample_count)
-
-def recvall(connection):
-    recv_data = connection.recv(1024)             # till eof when socket closed
-
-    for i in range(len(recv_data)):
-        if recv_data[i] == ' ':
-            break
-    
-    recv_len = recv_data[:i]
-    data = b'' + recv_data[i+1:]
-    amount_received = len(data)
-    amount_expected = eval(recv_len)
-    
-    while amount_received < amount_expected:
-        more = connection.recv(1024)
-        if not more:
-            raise EOFError('was expecting %d bytes but only received'
-                           ' %d bytes before the socket closed'
-                           % (amount_expected, amount_received))
-        data += more
-        amount_received += len(more)
+def recvall(connection, meglen):
+    data = ''
+    while len(data) < meglen:
+        packet = connection.recv(meglen - len(data))
+        if not packet:
+            return None
+        data += packet
     return data
 
 def recv_climate_data(sockobj,q):
@@ -65,9 +39,14 @@ def recv_climate_data(sockobj,q):
     while True:
         print("loop")
         # q.put(recvall(sockobj))
-        recv_data = recvall(sockobj)
-        # print(recv_data.decode())
+        raw_msglen = recvall(sockobj, 4)
+        print("raw_msglen", raw_msglen)
+        if not raw_msglen:
+            return None
+        msglen = struct.unpack('>I', raw_msglen)[0]
+        recv_data = recvall(sockobj, msglen)
         t_data ='<root>' + recv_data.decode() + '</root>'
+        print("t_data ", t_data)
         root = ET.fromstring(t_data)
         print(recv_data)
         real_data = {}
@@ -84,12 +63,21 @@ def recv_climate_data(sockobj,q):
         tmp_sim_timestamp = real_data['timestamp']
         t = datetime.strptime(tmp_sim_timestamp, '%Y/%m/%d %H:%M:%S')
         tmp_modeled_power = obj_sim.generated_power_point(real_data['temp'], real_data['ws'], real_data['radiation'], t)
-
+        tmp_modeled_wind = cal_available_power(4.4, real_data['ws'])
+        tmp_total_power = tmp_modeled_power + tmp_modeled_wind
+        
         if t > datetime.strptime("2015/05/22 06:00:00", '%Y/%m/%d %H:%M:%S') and t < datetime.strptime("2015/05/20 14:00:00", '%Y/%m/%d %H:%M:%S'):
             temp_0520.append(real_data["temp"])
             ws_0520.append(real_data["ws"])
             ratio_0520.append(tmp_modeled_power / real_data["measured_pow"])
+    
+        filename = str(t.year) + str(t.month) + str(t.day) + ".csv"
 
+        print("t.time", t.time())
+        if time(7,0,0) <= t.time() and t.time() <= time(16,0,0):            
+            # if os.path.isfile("filename"):
+            with open(filename, 'a') as the_file:
+                the_file.write("{0}, {1}, {2}\n".format(tmp_sim_timestamp, tmp_modeled_power, real_data["measured_pow"]))      
         print(list(temp_0520), list(ws_0520), list(ratio_0520))
         if first == True:
             first = False
@@ -103,41 +91,54 @@ def recv_climate_data(sockobj,q):
                 measured_radiation.append(0)
                 measured_ws.append(0)
                 measured_temp.append(0)
+                modeled_wind.append(0)
+                total_power.append(0)
                 # mutex.release()
             # print("initialized modeled power", modeled_power)
             # print("initialized sim timestamp", sim_timestamp)
         else:
             mutex.acquire()
             modeled_power.append(tmp_modeled_power)
+            modeled_wind.append(tmp_modeled_wind)
+            total_power.append(tmp_total_power)
             measured_pow.append(real_data['measured_pow'])
 
             measured_radiation.append(real_data['radiation'])
             measured_ws.append(real_data['ws'])
             measured_temp.append(real_data['temp'])
+
             print("appended timestamp : ", tmp_sim_timestamp)
             sim_timestamp.append(datetime.strptime(tmp_sim_timestamp, '%Y/%m/%d %H:%M:%S'))
             mutex.release()
             # print("out 4")            
 
 # def simulation(ax, fig, line, canvas, mutex, sim_timestamp, modeled_power):
-def simulation(ax, fig, line, line2, line3, line4, line5, canvas):
+def simulation(ax, fig, line, line2, line3, line4, line5, line6, line7, canvas):
     # global sim_timestamp, modeled_power
     ax[0, 0].grid(True)
     ax[0, 0].set_title('realtime simulation for generated power')
     ax[0, 0].set_ylabel('generated power(wh)')
 
+    ax[1, 0].grid(True)
+    ax[1, 0].set_title('realtime simulation for measured wind power')
+    ax[1, 0].set_ylabel('modeled wind power')
+
+    ax[2, 0].grid(True)
+    ax[2, 0].set_title('realtime simulation for modeled total power')
+    ax[2, 0].set_ylabel('modeled total power')
+        
     ax[0, 1].grid(True)
     ax[0, 1].set_title('realtime simulation for wind speed')
     ax[0, 1].set_ylabel('wind speed(m/s)')
 
-    ax[1, 0].grid(True)
-    ax[1, 0].set_title('realtime simulation for measured radiation')
-    ax[1, 0].set_ylabel('measured radiation')
-
     ax[1, 1].grid(True)
     ax[1, 1].set_title('realtime simulation for measured temperature')
     ax[1, 1].set_ylabel('measured temperature')
-    
+
+    ax[2, 1].grid(True)
+    ax[2, 1].set_title('realtime simulation for measured radiation')
+    ax[2, 1].set_ylabel('measured radiation')
+
     mutex.acquire()
     # print("[-100]", (sim_timestamp[-100:], modeled_power[-100:]))
     line[0].set_data(sim_timestamp[-100:], modeled_power[-100:])
@@ -146,6 +147,9 @@ def simulation(ax, fig, line, line2, line3, line4, line5, canvas):
 
     line4[0].set_data(sim_timestamp[-100:], measured_ws[-100:])
     line5[0].set_data(sim_timestamp[-100:], measured_temp[-100:])
+    line6[0].set_data(sim_timestamp[-100:], modeled_wind[-100:])
+    line7[0].set_data(sim_timestamp[-100:], total_power[-100:])
+
     len_value = len(sim_timestamp)
 
     m_left_index = len_value - 100
@@ -158,25 +162,37 @@ def simulation(ax, fig, line, line2, line3, line4, line5, canvas):
     ax_00_loc = MinuteLocator(interval=5)
     ax[0, 0].xaxis.set_minor_locator(ax_00_loc)
     ax[0, 0].xaxis.grid(True, which='minor')
-        
-    ax[0, 1].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 30])
-    ax[0, 1].xaxis.set_major_formatter(DateFormatter('%H:%M'))
-    ax_01_loc = MinuteLocator(interval=5)
-    ax[0, 1].xaxis.set_minor_locator(ax_01_loc)
-    ax[0, 1].xaxis.grid(True, which='minor')
-    
-    ax[1, 0].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 3000])
+
+    ax[1, 0].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 4000])
     ax[1, 0].xaxis.set_major_formatter(DateFormatter('%H:%M'))
     ax_10_loc = MinuteLocator(interval=5)
     ax[1, 0].xaxis.set_minor_locator(ax_10_loc)
     ax[1, 0].xaxis.grid(True, which='minor')    
+
+    ax[2, 0].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 6000])
+    ax[2, 0].xaxis.set_major_formatter(DateFormatter('%H:%M'))
+    ax_20_loc = MinuteLocator(interval=5)
+    ax[2, 0].xaxis.set_minor_locator(ax_20_loc)
+    ax[2, 0].xaxis.grid(True, which='minor')    
+
+    ax[0, 1].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 30])
+    ax[0, 1].xaxis.set_major_formatter(DateFormatter('%H:%M'))
+    ax_01_loc = MinuteLocator(interval=5)
+    ax[0, 1].xaxis.set_minor_locator(ax_01_loc)
+    ax[0, 1].xaxis.grid(True, which='minor')    
 
     ax[1, 1].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 50])
     ax[1, 1].xaxis.set_major_formatter(DateFormatter('%H:%M'))
     ax_11_loc = MinuteLocator(interval=5)
     ax[1, 1].xaxis.set_minor_locator(ax_11_loc)
     ax[1, 1].xaxis.grid(True, which='minor')
-    
+
+    ax[2, 1].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 3000])
+    ax[2, 1].xaxis.set_major_formatter(DateFormatter('%H:%M'))
+    ax_21_loc = MinuteLocator(interval=5)
+    ax[2, 1].xaxis.set_minor_locator(ax_21_loc)
+    ax[2, 1].xaxis.grid(True, which='minor')    
+
     m_left_date = sim_timestamp[m_left_index].date()
     m_right_date = sim_timestamp[m_right_index].date()
     # mutex.release()
@@ -185,9 +201,11 @@ def simulation(ax, fig, line, line2, line3, line4, line5, canvas):
     list_x_label = []
     if m_left_date == m_right_date:
         ax[0,0].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
-        ax[0,1].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
         ax[1,0].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
+        ax[2,0].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
+        ax[0,1].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
         ax[1,1].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
+        ax[2,1].set_xlabel(m_left_date.strftime("%Y-%m-%d"))
     else:
         diff_days = m_right_date - m_left_date
         int_diff_days = diff_days.days + 1
@@ -195,10 +213,12 @@ def simulation(ax, fig, line, line2, line3, line4, line5, canvas):
             date_str = (m_left_date + timedelta(days=i)).strftime("%Y-%m-%d")
             list_x_label.append(date_str)
         ax[0, 0].set_xlabel("   ".join(list_x_label))
-        ax[0, 1].set_xlabel("   ".join(list_x_label))
         ax[1, 0].set_xlabel("   ".join(list_x_label))
+        ax[2, 0].set_xlabel("   ".join(list_x_label))
+        ax[0, 1].set_xlabel("   ".join(list_x_label))
         ax[1, 1].set_xlabel("   ".join(list_x_label))
-
+        ax[2, 1].set_xlabel("   ".join(list_x_label))
+        
     plt.setp(plt.gca().get_xticklabels(), rotation=45, horizontalalignment='right')
     plt.subplots_adjust(bottom=0.2)
     canvas.get_tk_widget().pack(side=Tkinter.TOP, fill=Tkinter.BOTH, expand=1)
@@ -207,7 +227,7 @@ def simulation(ax, fig, line, line2, line3, line4, line5, canvas):
     mutex.release()
     
     # print(sim_timestamp[-10:])
-    root.after(300, simulation,ax, fig, line, line2,line3, line4, line5, canvas)
+    root.after(300, simulation,ax, fig, line, line2,line3, line4, line5, line6, line7, canvas)
             
 class SolarPVSim(object):
     def __init__(self, V_max = 43.4, Voc_max = 53, Voc_temp_coeff = -0.147, module_Tcoeff = -0.336, 
@@ -407,7 +427,9 @@ if __name__ == "__main__":
     measured_radiation = manager.list()
     measured_ws = manager.list()
     measured_temp = manager.list()
-
+    modeled_wind = manager.list()
+    total_power = manager.list()
+    
     temp_0520 = manager.list()
     ws_0520 = manager.list()
     ratio_0520 = manager.list()
@@ -427,9 +449,9 @@ if __name__ == "__main__":
     recv_cli_data.start()
 
     root = Tkinter.Tk()
-    fig, ax = plt.subplots(2, 2)
+    fig, ax = plt.subplots(3, 2)
 
-    time.sleep(1)
+    sleep(2)
     # print("len(modeled_power), len(sim_timestamp)", len(modeled_power), len(sim_timestamp), modeled_power, sim_timestamp)
     print("in 2")
     # with mutex :
@@ -438,21 +460,24 @@ if __name__ == "__main__":
     mutex.acquire()
     line = ax[0, 0].plot(sim_timestamp, modeled_power, label="modeled power")
     line2 = ax[0, 0].plot(sim_timestamp, measured_pow, label="measured power")
-
-    line3 = ax[1, 0].plot(sim_timestamp, measured_radiation, label="measured radiation")
+    line6 = ax[1, 0].plot(sim_timestamp, modeled_wind, label="modeled wind power")
+    line7 = ax[2, 0].plot(sim_timestamp, total_power, label="modeled total power")
 
     line4 = ax[0, 1].plot(sim_timestamp, measured_ws, label="measured wind speed")
-
     line5 = ax[1, 1].plot(sim_timestamp, measured_temp, label="measured temperature")
+    line3 = ax[2, 1].plot(sim_timestamp, measured_radiation, label="measured radiation")
+
     ax[0, 0].legend()
-    ax[1, 0].legend()
     ax[0, 1].legend()
+    ax[1, 0].legend()
     ax[1, 1].legend()
+    ax[2, 0].legend()
+    ax[2, 1].legend()
     mutex.release()
         # mutex.release()
     canvas = FigureCanvasTkAgg(fig, master=root)
 
-    root.after(300,simulation, ax, fig, line, line2, line3, line4, line5, canvas)
+    root.after(300,simulation, ax, fig, line, line2, line3, line4, line5, line6,line7, canvas)
     # root.after(1000,simulation, ax, fig, line, canvas)
 
     root.mainloop()

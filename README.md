@@ -1,1 +1,2 @@
-# simulation_CentOS
+# Real Time Simulation of Hybrid Distributed Energy Resource using Solar PV and Wind Power
+This project is aim to provide an integrated part of smart house distributed energy resource system, in which it will produce an real time graphical result of how much power will be created through solar PV and wind turbine. It consists of two group : server for climate data delivering, client for climate data receiving and present simulation result. The considered factors will be solar radiation, wind speed, ambient temperature, air pressure.

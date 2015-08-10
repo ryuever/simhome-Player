@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.dates import DayLocator, HourLocator, DateFormatter, drange, MinuteLocator
+
 import threading
 from SolarAngle import *
 from wind_4k import *
@@ -63,26 +64,42 @@ def recv_climate_data(sockobj,q):
         tmp_sim_timestamp = real_data['timestamp']
         t = datetime.strptime(tmp_sim_timestamp, '%Y/%m/%d %H:%M:%S')
         tmp_modeled_power = obj_sim.generated_power_point(real_data['temp'], real_data['ws'], real_data['radiation'], t)
+        # reg_rad = obj_sim.reg(real_data["temp"], real_data["ws"], tmp_modeled_power)
         tmp_modeled_wind = cal_available_power(4.4, real_data['ws'])
-        tmp_total_power = tmp_modeled_power + tmp_modeled_wind
-        
+
+        reg_rad = obj_sim.reg(real_data["temp"], real_data["ws"], real_data["measured_pow"])
+        tmp_modeled_power2 = obj_sim.generated_power_point(real_data['temp'], real_data['ws'], reg_rad, t)
+                
         if t > datetime.strptime("2015/05/22 06:00:00", '%Y/%m/%d %H:%M:%S') and t < datetime.strptime("2015/05/20 14:00:00", '%Y/%m/%d %H:%M:%S'):
             temp_0520.append(real_data["temp"])
             ws_0520.append(real_data["ws"])
             ratio_0520.append(tmp_modeled_power / real_data["measured_pow"])
     
-        filename = str(t.year) + str(t.month) + str(t.day) + ".csv"
+        # filename = str(t.year) + str(t.month) + str(t.day) + ".csv"
 
+        
+        if time(16,0,0) <= t.time() or t.time() <= time(8,0,0):
+            tmp_total_power = tmp_modeled_power2 + tmp_modeled_wind            
+        else:
+            tmp_total_power = tmp_modeled_power + tmp_modeled_wind
+        
         print("t.time", t.time())
-        if time(7,0,0) <= t.time() and t.time() <= time(16,0,0):            
-            # if os.path.isfile("filename"):
-            with open(filename, 'a') as the_file:
-                the_file.write("{0}, {1}, {2}\n".format(tmp_sim_timestamp, tmp_modeled_power, real_data["measured_pow"]))      
-        print(list(temp_0520), list(ws_0520), list(ratio_0520))
+        # if time(6,0,0) <= t.time() and t.time() <= time(20,0,0):            
+        #     # if os.path.isfile("filename"):
+        #     with open(filename, 'a') as the_file:
+        #         # the_file.write("{0}, {1}, {2}, {3}, {4}\n".format(tmp_sim_timestamp, tmp_modeled_power, real_data["measured_pow"], real_data["radiation"], reg_rad))
+        #         the_file.write("{0}, {1}, {2}, {3}, {4}\n".format(tmp_sim_timestamp, round(tmp_modeled_power2, 2), real_data["measured_pow"], tmp_modeled_wind, tmp_total_power))
+
+        
+        # with open(filename, 'a') as the_file:
+        #     # the_file.write("{0}, {1}, {2}, {3}, {4}\n".format(tmp_sim_timestamp, tmp_modeled_power, real_data["measured_pow"], real_data["radiation"], reg_rad))
+        #     the_file.write("{0}, {1}, {2}, {3}, {4}, {5}\n".format(tmp_sim_timestamp, round(tmp_modeled_power2, 2), real_data["measured_pow"], round(real_data['ws'],2), round(tmp_modeled_wind,2), round(tmp_total_power, 2)))
+            
+        # print(list(temp_0520), list(ws_0520), list(ratio_0520))
         if first == True:
             first = False
             # mutex.acquire()
-            for i in reversed(range(100)):
+            for i in reversed(range(288)):
                 # print("begining 3")
                 sim_timestamp.append(t - timedelta(minutes=i*5))
                 modeled_power.append(tmp_modeled_power)
@@ -98,12 +115,18 @@ def recv_climate_data(sockobj,q):
             # print("initialized sim timestamp", sim_timestamp)
         else:
             mutex.acquire()
-            modeled_power.append(tmp_modeled_power)
+
             modeled_wind.append(tmp_modeled_wind)
-            total_power.append(tmp_total_power)
+
             measured_pow.append(real_data['measured_pow'])
 
-            measured_radiation.append(real_data['radiation'])
+            if time(16,0,0) <= t.time() or t.time() <= time(8,0,0):
+                measured_radiation.append(reg_rad)
+                modeled_power.append(tmp_modeled_power2)
+            else:
+                modeled_power.append(tmp_modeled_power)
+                measured_radiation.append(real_data['radiation'])
+            total_power.append(tmp_total_power)
             measured_ws.append(real_data['ws'])
             measured_temp.append(real_data['temp'])
 
@@ -117,15 +140,15 @@ def simulation(ax, fig, line, line2, line3, line4, line5, line6, line7, canvas):
     # global sim_timestamp, modeled_power
     ax[0, 0].grid(True)
     ax[0, 0].set_title('realtime simulation for generated power')
-    ax[0, 0].set_ylabel('generated power(wh)')
+    ax[0, 0].set_ylabel('generated power(W)')
 
     ax[1, 0].grid(True)
     ax[1, 0].set_title('realtime simulation for measured wind power')
-    ax[1, 0].set_ylabel('modeled wind power')
+    ax[1, 0].set_ylabel('modeled wind power(W)')
 
     ax[2, 0].grid(True)
     ax[2, 0].set_title('realtime simulation for modeled total power')
-    ax[2, 0].set_ylabel('modeled total power')
+    ax[2, 0].set_ylabel('modeled total power(W)')
         
     ax[0, 1].grid(True)
     ax[0, 1].set_title('realtime simulation for wind speed')
@@ -133,26 +156,26 @@ def simulation(ax, fig, line, line2, line3, line4, line5, line6, line7, canvas):
 
     ax[1, 1].grid(True)
     ax[1, 1].set_title('realtime simulation for measured temperature')
-    ax[1, 1].set_ylabel('measured temperature')
+    ax[1, 1].set_ylabel('measured temperature($^\circ$C)')
 
     ax[2, 1].grid(True)
     ax[2, 1].set_title('realtime simulation for measured radiation')
-    ax[2, 1].set_ylabel('measured radiation')
+    ax[2, 1].set_ylabel('measured radiation($kW/m^2$)')
 
     mutex.acquire()
-    # print("[-100]", (sim_timestamp[-100:], modeled_power[-100:]))
-    line[0].set_data(sim_timestamp[-100:], modeled_power[-100:])
-    line2[0].set_data(sim_timestamp[-100:], measured_pow[-100:])
-    line3[0].set_data(sim_timestamp[-100:], measured_radiation[-100:])
+    # print("[-288]", (sim_timestamp[-288:], modeled_power[-288:]))
+    line[0].set_data(sim_timestamp[-288:], modeled_power[-288:])
+    line2[0].set_data(sim_timestamp[-288:], measured_pow[-288:])
+    line3[0].set_data(sim_timestamp[-288:], measured_radiation[-288:])
 
-    line4[0].set_data(sim_timestamp[-100:], measured_ws[-100:])
-    line5[0].set_data(sim_timestamp[-100:], measured_temp[-100:])
-    line6[0].set_data(sim_timestamp[-100:], modeled_wind[-100:])
-    line7[0].set_data(sim_timestamp[-100:], total_power[-100:])
+    line4[0].set_data(sim_timestamp[-288:], measured_ws[-288:])
+    line5[0].set_data(sim_timestamp[-288:], measured_temp[-288:])
+    line6[0].set_data(sim_timestamp[-288:], modeled_wind[-288:])
+    line7[0].set_data(sim_timestamp[-288:], total_power[-288:])
 
     len_value = len(sim_timestamp)
 
-    m_left_index = len_value - 100
+    m_left_index = len_value - 288
     m_right_index = len_value - 1
 
     # print("left ", m_left_index, m_right_index, len(sim_timestamp), len(modeled_power))
@@ -161,37 +184,37 @@ def simulation(ax, fig, line, line2, line3, line4, line5, line6, line7, canvas):
     ax[0, 0].xaxis.set_major_formatter(DateFormatter('%H:%M'))
     ax_00_loc = MinuteLocator(interval=5)
     ax[0, 0].xaxis.set_minor_locator(ax_00_loc)
-    ax[0, 0].xaxis.grid(True, which='minor')
+    # ax[0, 0].xaxis.grid(True, which='minor')
 
     ax[1, 0].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 4000])
     ax[1, 0].xaxis.set_major_formatter(DateFormatter('%H:%M'))
     ax_10_loc = MinuteLocator(interval=5)
     ax[1, 0].xaxis.set_minor_locator(ax_10_loc)
-    ax[1, 0].xaxis.grid(True, which='minor')    
+    # ax[1, 0].xaxis.grid(True, which='minor')    
 
     ax[2, 0].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 6000])
     ax[2, 0].xaxis.set_major_formatter(DateFormatter('%H:%M'))
     ax_20_loc = MinuteLocator(interval=5)
     ax[2, 0].xaxis.set_minor_locator(ax_20_loc)
-    ax[2, 0].xaxis.grid(True, which='minor')    
+    # ax[2, 0].xaxis.grid(True, which='minor')    
 
     ax[0, 1].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 30])
     ax[0, 1].xaxis.set_major_formatter(DateFormatter('%H:%M'))
     ax_01_loc = MinuteLocator(interval=5)
     ax[0, 1].xaxis.set_minor_locator(ax_01_loc)
-    ax[0, 1].xaxis.grid(True, which='minor')    
+    # ax[0, 1].xaxis.grid(True, which='minor')    
 
     ax[1, 1].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 50])
     ax[1, 1].xaxis.set_major_formatter(DateFormatter('%H:%M'))
     ax_11_loc = MinuteLocator(interval=5)
     ax[1, 1].xaxis.set_minor_locator(ax_11_loc)
-    ax[1, 1].xaxis.grid(True, which='minor')
+    # ax[1, 1].xaxis.grid(True, which='minor')
 
     ax[2, 1].axis([sim_timestamp[m_left_index], sim_timestamp[m_right_index], 0, 3000])
     ax[2, 1].xaxis.set_major_formatter(DateFormatter('%H:%M'))
     ax_21_loc = MinuteLocator(interval=5)
     ax[2, 1].xaxis.set_minor_locator(ax_21_loc)
-    ax[2, 1].xaxis.grid(True, which='minor')    
+    # ax[2, 1].xaxis.grid(True, which='minor')    
 
     m_left_date = sim_timestamp[m_left_index].date()
     m_right_date = sim_timestamp[m_right_index].date()
@@ -223,7 +246,8 @@ def simulation(ax, fig, line, line2, line3, line4, line5, line6, line7, canvas):
     plt.subplots_adjust(bottom=0.2)
     canvas.get_tk_widget().pack(side=Tkinter.TOP, fill=Tkinter.BOTH, expand=1)
     # print("sim_timestamp, modeled_power", list(sim_timestamp), len(modeled_power), len(measured_pow), len(measured_temp), len(measured_ws), len(sim_timestamp))
-    canvas.show()
+    canvas.show()    
+    # canvas2.show()
     mutex.release()
     
     # print(sim_timestamp[-10:])
@@ -308,12 +332,25 @@ class SolarPVSim(object):
         end_time_date = timestamp + timedelta(minutes=5)
         # end_time = start_time + 1/12
         end_time = end_time_date.hour + end_time_date.minute / 60
-        
-        if timestamp.hour > 15:
-            # power = obj_solar_angle.cal_incident_radiation(power, start_time, end_time, 0.2, 30, doy)
-            power = 100
-        
-        # insolwmsq = glb_radiation * 0.95
+
+        from math import degrees
+        # insolwmsq = power * obj_solar_angle.cos_incidence(start_time, doy, 30) * 0.95
+        # if timestamp.hour > 13:
+        #     # power = obj_solar_angle.cal_incident_radiation(power, start_time, end_time, 0.2, 30, doy)
+        #     # insolwmsq = power * obj_solar_angle.elevation_sin(start_time, doy) * 0.95
+        #     # insolwmsq = power * obj_solar_angle.zenith_cos(start_time, doy) * 0.95
+        #     tm = cos(2 * pi * (timestamp.hour + timestamp.minute / 60 - 12) / 25)
+        #     print("------------------tm----------", tm, timestamp.hour, timestamp.minute)
+        #     insolwmsq = power * tm * 0.95
+        #     # insolwmsq = power * obj_solar_angle.cos_incidence(start_time, doy, 30) * obj_solar_angle.elevation_sin(start_time, doy)  * 0.95 
+        # else:
+        #     # insolwmsq = glb_radiation * 0.95
+        #     insolwmsq = 0.95 * power
+
+                #----------------------------------------------------#
+        # if timestamp.hour == 6:            
+        #     power = power - 190
+
         insolwmsq = 0.95 * power 
         windspeed = wind                       # m/s        
         
@@ -329,10 +366,23 @@ class SolarPVSim(object):
         efficiency = 0.2
         
         # print("derating_factor : ", self.derating_factor)
-        P_Out = insolwmsq * self.derating_factor * 12.8 * efficiency * tempcorr
-        if timestamp.hour < 7 or timestamp.hour > 17:
-            P_Out = 0
+
+        if Tambient < 19.2:
+            P_Out = insolwmsq * self.derating_factor * 12.8 * efficiency * tempcorr * 1.05
+        elif Tambient < 22.8:
+            P_Out = insolwmsq * self.derating_factor * 12.8 * efficiency * tempcorr * 1
+        else:
+            P_Out = insolwmsq * self.derating_factor * 12.8 * efficiency * tempcorr * 0.97
             
+
+        #----------------------------------------------------#
+        # if timestamp.hour < 7 or timestamp.hour > 17:
+        #     P_Out = 0
+        #----------------------------------------------------#
+        # if timestamp.hour == 6:
+        #     print("hlfasdjfkafajkfjklafjakf")
+        #     P_Out = P_Out - 430
+        
         VA_Out = P_Out
         # print("VA_Out : ", VA_Out)
         
@@ -342,16 +392,16 @@ class SolarPVSim(object):
         # I_Out = (VA_Out / V_Out)
         VA_Outs.append(round(VA_Out,2))
 
-        p_dco = 2694
-        v_dco = 250
+        p_dco = 2700
+        v_dco = 380
         # v_dco = 302
         # p_so = 20.7
-        p_so = 90
+        p_so = 20.7
     
-        c_o = -1.545e-5
-        c_1 = 6.525e-5;
-        c_2 = 2.836e-3;
-        c_3 = -3.058e-4;
+        c_o = 0
+        c_1 = 0
+        c_2 = 0
+        c_3 = 0
 
         p_max = 2500
 
@@ -360,12 +410,50 @@ class SolarPVSim(object):
         C3 = c_o*(1+c_3*(V_Out-v_dco));
         ac = ((p_max/(C1-C2))-C3*(C1-C2))*(P_Out-C2)+C3*(P_Out-C2)*(P_Out-C2)
 
+        # p_dco = 2694
+        # v_dco = 250
+        # # v_dco = 302
+        # # p_so = 20.7
+        # p_so = 90
+    
+        # c_o = -1.545e-5
+        # c_1 = 6.525e-5;
+        # c_2 = 2.836e-3;
+        # c_3 = -3.058e-4;
+
+        # p_max = 2500
+
+        # C1 = p_dco*(1+c_1*(V_Out-v_dco));
+        # C2 = p_so*(1+c_2*(V_Out-v_dco));
+        # C3 = c_o*(1+c_3*(V_Out-v_dco));
+        # ac = ((p_max/(C1-C2))-C3*(C1-C2))*(P_Out-C2)+C3*(P_Out-C2)*(P_Out-C2)
+        
         if P_Out == 0:
             ac = 0
         # print(timestamp, "glb_raidation", glb_radiation , "ac", ac)
         print(timestamp, "power", power , "ac", ac)    
-        return ac
+        # return ac
+        return P_Out
+    def reg(self, temp, wind, power):
+        Tambient = temp
+        # insolwmsq = power[i] * 0.95
+        windspeed = wind                    # m/s
+        efficiency = 0.2
+        a = self.module_acoeff
+        b = self.module_bcoeff
         
+        z = power * 100/ (self.derating_factor * 12.56 * efficiency)
+        m = exp(a + b * windspeed)
+        x = self.module_Tcoeff * (m + self.module_dTcoeff / 1000)
+        y = 100 + self.module_Tcoeff * (Tambient - 25) / 1000
+        # x = (m*self.module_Tcoeff / 1000 + self.module_dTcoeff / 1000000)
+        # y = (1 + (self.module_Tcoeff * Tambient)/ 1000)
+
+        value = (-y + sqrt(pow(y, 2)  + 4 * x * z)) / (2 * x)
+        # print("power", power[i], "x", x , "y", y, "z", z, value)
+        # values.append(round(value,2))
+        return value
+    
     def regression_from_power(self, temp, wind, power):
         """
         # from measured power data 
@@ -451,12 +539,12 @@ if __name__ == "__main__":
     root = Tkinter.Tk()
     fig, ax = plt.subplots(3, 2)
 
-    sleep(2)
+    # fig2, ax2 = plt.subplots(1)
+    
+    sleep(1)
     # print("len(modeled_power), len(sim_timestamp)", len(modeled_power), len(sim_timestamp), modeled_power, sim_timestamp)
-    print("in 2")
     # with mutex :
         # mutex.acquire()
-    print("begining 2")
     mutex.acquire()
     line = ax[0, 0].plot(sim_timestamp, modeled_power, label="modeled power")
     line2 = ax[0, 0].plot(sim_timestamp, measured_pow, label="measured power")
@@ -476,6 +564,7 @@ if __name__ == "__main__":
     mutex.release()
         # mutex.release()
     canvas = FigureCanvasTkAgg(fig, master=root)
+    # canvas2 = FigureCanvasTkAgg(fig2, master=root)
 
     root.after(300,simulation, ax, fig, line, line2, line3, line4, line5, line6,line7, canvas)
     # root.after(1000,simulation, ax, fig, line, canvas)
